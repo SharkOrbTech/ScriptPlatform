@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useLocation, Link } from 'react-router-dom'
 import { api } from '../services/api'
+import { exportToMarkdown, exportToDocx } from '../services/exportUtils'
 
 export default function ScriptViewerPage() {
   const { scriptId } = useParams()
@@ -18,11 +19,20 @@ export default function ScriptViewerPage() {
   const [rewriteTarget, setRewriteTarget] = useState(null) // {target, targetName}
   const [rewriteInstruction, setRewriteInstruction] = useState('')
   const [rewriteLoading, setRewriteLoading] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
   const [rewriteError, setRewriteError] = useState('')
 
   useEffect(() => {
     if (!script) fetchScript()
   }, [scriptId])
+
+  // Close export menu on outside click
+  useEffect(() => {
+    if (!showExportMenu) return
+    const close = () => setShowExportMenu(false)
+    document.addEventListener('click', close)
+    return () => document.removeEventListener('click', close)
+  }, [showExportMenu])
 
   async function fetchScript() {
     setLoading(true)
@@ -141,7 +151,22 @@ export default function ScriptViewerPage() {
           <button className="btn btn-secondary text-sm" onClick={handleCopyrightCheck} disabled={checkingCopyright}>
             {checkingCopyright ? '检测中...' : '版权检测'}
           </button>
-          <button className="btn btn-ghost text-sm" onClick={() => window.print()}>导出</button>
+          <div className="relative">
+            <button className="btn btn-ghost text-sm" onClick={(e) => { e.stopPropagation(); setShowExportMenu(!showExportMenu) }}>导出</button>
+            {showExportMenu && (
+              <div className="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border border-ink-100 py-1 z-50">
+                <button className="w-full text-left px-4 py-2 text-sm text-ink-700 hover:bg-ink-50" onClick={() => { exportToMarkdown(script); setShowExportMenu(false) }}>
+                  导出为 Markdown
+                </button>
+                <button className="w-full text-left px-4 py-2 text-sm text-ink-700 hover:bg-ink-50" onClick={() => { exportToDocx(script); setShowExportMenu(false) }}>
+                  导出为 DOCX
+                </button>
+                <button className="w-full text-left px-4 py-2 text-sm text-ink-700 hover:bg-ink-50" onClick={() => { window.print(); setShowExportMenu(false) }}>
+                  打印
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

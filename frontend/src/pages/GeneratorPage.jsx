@@ -16,6 +16,7 @@ export default function GeneratorPage() {
   const [status, setStatus] = useState(null)
   const [error, setError] = useState('')
   const [notification, setNotification] = useState('')
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
 
   // Multi-round question state
   const [step, setStep] = useState(1) // 1: topic, 2: genre, 3: details, 4: qa, 5: confirm
@@ -106,6 +107,15 @@ export default function GeneratorPage() {
       return () => clearInterval(pollRef.current)
     }
   }, [taskId, generating])
+
+  // Elapsed time timer
+  useEffect(() => {
+    if (generating) {
+      setElapsedSeconds(0)
+      const timer = setInterval(() => setElapsedSeconds(s => s + 1), 1000)
+      return () => clearInterval(timer)
+    }
+  }, [generating])
 
   useEffect(() => {
     if (urlTaskId && !generating) {
@@ -590,26 +600,60 @@ export default function GeneratorPage() {
 
       {/* Generating Progress */}
       {generating && (
-        <div className="card p-8 text-center animate-fade-in">
-          <div className="mb-6">
-            <span className="spinner" style={{ width: 48, height: 48, borderWidth: 3 }} />
+        <div className="card p-8 animate-fade-in">
+          <div className="text-center mb-6">
+            <div className="mb-4">
+              <span className="spinner" style={{ width: 48, height: 48, borderWidth: 3 }} />
+            </div>
+            <h2 className="text-lg font-semibold text-ink-900 mb-2">正在生成剧本</h2>
+            <p className="text-sm text-ink-600 font-medium">
+              {status?.current_phase || '正在初始化AI引擎...'}
+            </p>
           </div>
-          <h2 className="text-lg font-semibold text-ink-900 mb-2">正在生成剧本</h2>
-          <p className="text-sm text-ink-500 mb-6">
-            {status?.status === 'generating'
-              ? status.current_episode > 0
-                ? `正在创作第 ${status.current_episode} / ${status.total_episodes} 集...`
-                : '正在策划故事...'
-              : '正在初始化AI引擎...'}
-          </p>
+
+          {/* Phase Stepper */}
+          <div className="flex items-center justify-between mb-6 px-4">
+            {[
+              { key: 'plan', label: '策划' },
+              { key: 'character', label: '角色' },
+              { key: 'episode', label: '剧集' },
+              { key: 'assemble', label: '组装' },
+            ].map((phase, i, arr) => {
+              const progress = status?.progress || 0
+              const phaseProgress = [15, 20, 95, 100]
+              const isActive = progress < phaseProgress[i] && (i === 0 || progress >= phaseProgress[i - 1])
+              const isDone = progress >= phaseProgress[i]
+              return (
+                <div key={phase.key} className="flex items-center flex-1">
+                  <div className="flex flex-col items-center">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-colors ${
+                      isDone ? 'bg-brand-500 text-white' : isActive ? 'bg-brand-100 text-brand-700 ring-2 ring-brand-500' : 'bg-ink-100 text-ink-400'
+                    }`}>
+                      {isDone ? '✓' : i + 1}
+                    </div>
+                    <span className={`text-xs mt-1 ${isDone || isActive ? 'text-ink-700' : 'text-ink-400'}`}>{phase.label}</span>
+                  </div>
+                  {i < arr.length - 1 && (
+                    <div className={`flex-1 h-0.5 mx-2 mt-[-16px] ${isDone ? 'bg-brand-500' : 'bg-ink-100'}`} />
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Progress Bar */}
           <div className="w-full bg-ink-100 rounded-full h-2 mb-2">
             <div
               className="bg-brand-500 h-2 rounded-full transition-all duration-500"
               style={{ width: `${status?.progress || 0}%` }}
             />
           </div>
-          <p className="text-xs text-ink-400">{Math.round(status?.progress || 0)}% 完成</p>
-          <p className="text-xs text-ink-400 mt-4">
+          <div className="flex justify-between text-xs text-ink-400">
+            <span>{Math.round(status?.progress || 0)}% 完成</span>
+            <span>已用时 {Math.floor(elapsedSeconds / 60)}:{String(elapsedSeconds % 60).padStart(2, '0')}</span>
+          </div>
+
+          <p className="text-xs text-ink-400 mt-4 text-center">
             生成将在后台继续进行，您可以浏览其他页面
           </p>
           <div className="flex justify-center gap-3 mt-4">

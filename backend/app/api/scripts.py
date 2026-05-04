@@ -1,5 +1,6 @@
 """API routes for script generation and management."""
 import json
+import re
 import uuid
 from datetime import datetime
 
@@ -13,6 +14,23 @@ from app.models.schemas import (
 )
 
 router = APIRouter(prefix="/api/scripts", tags=["scripts"])
+
+
+def _sanitize_json(obj):
+    """Recursively sanitize strings to remove control characters that break JSON."""
+    if isinstance(obj, str):
+        return _sanitize_json_str(obj)
+    if isinstance(obj, dict):
+        return {k: _sanitize_json(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize_json(v) for v in obj]
+    return obj
+
+
+def _sanitize_json_str(s: str) -> str:
+    """Sanitize a string by escaping control characters."""
+    return s.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t').replace('\b', '\\b').replace('\f', '\\f')
+
 
 # In-memory script storage
 _script_store: dict[str, dict] = {}
@@ -60,7 +78,7 @@ async def get_generation_status(task_id: str):
         else:
             result["script"] = status.script.model_dump()
         _script_store[task_id] = result["script"]
-    return result
+    return _sanitize_json(result)
 
 
 @router.get("/list")
@@ -231,14 +249,14 @@ D. 选项4
         # Extract the question (first line before options)
         question = response.split('\n')[0] if response else ""
 
-        return {
+        return _sanitize_json({
             "session_id": session_id,
             "response": response,
             "question": question,
             "options": options,
             "summary": summary,
             "is_complete": summary is not None,
-        }
+        })
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI调用失败: {str(e)}")
 
@@ -330,7 +348,11 @@ async def rewrite_script_part(request: QARewriteRequest):
             try:
                 result = json.loads(json_match.group(1))
             except json.JSONDecodeError:
-                pass
+                # Try sanitizing control characters
+                try:
+                    result = json.loads(_sanitize_json_str(json_match.group(1)))
+                except (json.JSONDecodeError, Exception):
+                    pass
 
         if not result:
             # Try brace matching
@@ -346,7 +368,10 @@ async def rewrite_script_part(request: QARewriteRequest):
                             try:
                                 result = json.loads(response[start:i + 1])
                             except json.JSONDecodeError:
-                                pass
+                                try:
+                                    result = json.loads(_sanitize_json_str(response[start:i + 1]))
+                                except (json.JSONDecodeError, Exception):
+                                    pass
                             break
 
         if not result:
@@ -385,7 +410,7 @@ async def rewrite_script_part(request: QARewriteRequest):
 
         _script_store[request.script_id] = stored
 
-        return {"success": True, "result": result}
+        return _sanitize_json({"success": True, "result": result})
     except HTTPException:
         raise
     except Exception as e:

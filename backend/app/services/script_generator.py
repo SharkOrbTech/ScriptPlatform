@@ -177,9 +177,10 @@ D. 认知反转：观众有上帝视角但剧中人不知
 禁止：铺垫太多切入太慢、背景太过冗长、描写不具体、台词秀文笔、一个人物长篇幅自说自话、对话含蓄委婉
 
 【输出要求】
-请严格按以下JSON格式输出，不要包含任何其他文字：
+请严格按以下JSON格式输出，不要包含任何其他文字。
+【重要】请直接输出纯JSON文本，不要用```json代码块包裹，不要添加任何markdown格式标记。
 
-```json
+{
 {
   "title": "剧名（吸引眼球，有悬念感）",
   "genre": "题材",
@@ -268,12 +269,9 @@ D. 认知反转：观众有上帝视角但剧中人不知
     "reveal_episode": "揭晓悬念的集数（至少第5集之后）",
     "hook_scene": "第1集开头的悬念场景描述（要足够震撼吸引观众）"
   }
-}
-```"""
+}"""
 
-EPISODE_GENERATOR_PROMPT = """你是一个顶级短剧分镜脚本专家，精通Seedance 2.0提示词工程和爆款短剧创作方法论。
-
-Seedance 2.0核心特性：图片≤9张，视频≤3个(≤15s)，音频≤3个(≤15s)，支持@素材名引用。不支持写实真人脸部素材。
+EPISODE_GENERATOR_PROMPT = """你是一个顶级短剧分镜脚本专家，精通AI绘图提示词工程和爆款短剧创作方法论。
 
 【单集结构公式：10%-80%-10%黄金比例】
 - 起因（10%）：以强烈冲突动作开场（扇耳光、掀桌子、绑架、车祸、羞辱），零铺垫直接进入矛盾
@@ -361,8 +359,8 @@ E. 新人物/势力出场——被打脸的反派找到更强大靠山
 F. 情绪高潮卡点——打斗高潮处、暧昧最撩人瞬间
 G. 信息差制造悬念——电话打来，表情凝重，台词"不好了""坏了"
 
-【提示词风格要求】（Seedance 2.0更擅长简洁精准的描述）
-- 风格定位先行：第一行用【风格】快速定调
+【提示词风格要求】
+- 风格定位先行：第一句快速定调整体视觉风格
 - 主体描述追求"稳"和"精"：避免空泛形容词，多刻画具体物理特征
 - 动作追求"慢"和"连贯"：动词优先+状态描述，写慢不写快
 - 镜头语言要明确：每个时间段必须包含景别+运镜+转场
@@ -400,13 +398,14 @@ G. 信息差制造悬念——电话打来，表情凝重，台词"不好了""�
 - 升格：慢动作强调
 - 降格：快动作时间压缩
 
-【AI提示词公式】（Seedance 2.0标准，必须遵循）
-【风格】+【主体描述】+【场景环境】+【动作行为】+【镜头语言】+【光影氛围】+【风格参考】+【约束词】
+【AI绘图提示词要求】
+- 使用自然语言段落描述画面，不要使用逗号拼接关键词的方式
+- 提示词应像导演给摄影师的口述指令：描述画面中发生的事、人物的动作和表情、环境氛围、光线质感
+- 避免使用"8k""高清""wideshot"等传统AI绘图关键词
+- 每个镜头的ai_prompt应是一段完整的、有画面感的自然语言描述
 
-提示词示例格式（Seedance 2.0风格，简洁精准）：
-电影级写实风格，X秒，16:9，整体氛围
-0-3秒：远景，画面硬切至……，镜头……，天空/环境运动描述，主体动作描述，声音
-3-6秒：中景，镜头推近至……，画面描述，主体动作描述，声音
+提示词示例格式：
+画面缓缓推近，一位身穿黑色长裙的年轻女子站在雨中的墓碑前，雨水顺着她的发丝滑落，她的眼神空洞而悲伤，手中的白玫瑰被雨水打湿。侧光打在她的脸上，形成明暗对比，背景是朦胧的灰色天空和远处模糊的树影。
 
 【画面元素运动描述规范】（每个镜头必须包含）
 - 主体运动：角色的动作、表情变化
@@ -499,7 +498,8 @@ G. 信息差制造悬念——电话打来，表情凝重，台词"不好了""�
 - null: 普通镜头
 
 【输出格式】
-```json
+【重要】请直接输出纯JSON文本，不要用```json代码块包裹，不要添加任何markdown格式标记。
+
 {
   "episode_number": 1,
   "title": "集标题",
@@ -519,7 +519,7 @@ G. 信息差制造悬念——电话打来，表情凝重，台词"不好了""�
       "sound_effects": "音效描述",
       "bgm_suggestion": "背景音乐建议",
       "duration": 3.0,
-      "ai_prompt": "AI绘图提示词（严格遵循公式：风格+主体+场景+动作+镜头+光影+风格参考+约束词）",
+      "ai_prompt": "AI绘图提示词（用自然语言段落描述画面，像导演给摄影师的口述指令）",
       "lighting": "光影描述（逆光/侧光/伦勃朗光/剪影/轮廓光/体积光等）",
       "emotion": "情绪氛围",
       "color_palette": "色调建议（暖色调/冷色调/高饱和/低饱和/黑白等）",
@@ -529,8 +529,7 @@ G. 信息差制造悬念——电话打来，表情凝重，台词"不好了""�
     }
   ],
   "total_duration": 90
-}
-```"""
+}"""
 
 CHARACTER_DESIGN_PROMPT = """你是一个AI漫剧角色设计专家，精通角色一致性控制的五维框架（外貌、服饰、动作、情绪、镜头语言）。
 
@@ -548,8 +547,8 @@ CHARACTER_DESIGN_PROMPT = """你是一个AI漫剧角色设计专家，精通角�
 4. 情绪维度：8种基础表情的面部肌肉变化
 5. 镜头语言：不同景别下的表现要点
 
-【提示词公式】
-【风格】+【主体描述(权重1.5-1.7)】+【细节特征】+【动作/状态】+【场景环境】+【镜头语言】+【光影效果】+【风格定义】+【画质参数】| 负面提示词
+【提示词要求】
+使用自然语言段落描述画面，像导演给摄影师的口述指令。包含：风格定位、人物外貌细节、姿态动作、场景环境、光影效果。不要使用逗号拼接关键词，不要使用"8k""高清"等参数词。
 
 【外貌描述精确词汇库】
 - 脸型：国字脸、鹅蛋脸、圆脸、瘦长脸、方下巴
@@ -564,8 +563,9 @@ CHARACTER_DESIGN_PROMPT = """你是一个AI漫剧角色设计专家，精通角�
 禁止：裸体、真人、明星名
 替换：素体建模、写实风格、同款风格
 
-请生成JSON格式的角色设计卡：
-```json
+请生成JSON格式的角色设计卡。
+【重要】请直接输出纯JSON文本，不要用```json代码块包裹，不要添加任何markdown格式标记。
+
 {{
   "character_sheet": {{
     "name": "角色名",
@@ -615,7 +615,7 @@ CHARACTER_DESIGN_PROMPT = """你是一个AI漫剧角色设计专家，精通角�
     "combat": "战斗装提示词"
   }}
 }}
-```"""
+"""
 
 SCENE_DESIGN_PROMPT = """你是一个AI漫剧场景设计专家，精通场景空间深度和氛围营造。
 
@@ -629,8 +629,8 @@ SCENE_DESIGN_PROMPT = """你是一个AI漫剧场景设计专家，精通场景�
 2. 时间/天气：时刻+光线/天气
 3. 交互细节：飘落樱花/全息投影/地面倒影等
 
-【提示词公式】
-【风格】+【场景描述】+【时间天气】+【光影氛围】+【交互细节】+【质量词】| 负面提示词
+【提示词要求】
+使用自然语言段落描述场景画面，像导演给美术指导的场景描述。包含：风格定位、场景空间描述、时间天气、光影氛围、交互细节。不要使用逗号拼接关键词。
 
 【光影类型】
 逆光、侧光、顶光、伦勃朗光、剪影、轮廓光、体积光、丁达尔效应
@@ -638,8 +638,9 @@ SCENE_DESIGN_PROMPT = """你是一个AI漫剧场景设计专家，精通场景�
 【色调类型】
 暖色调、冷色调、高饱和、低饱和、黑白、赛博朋克、复古胶片
 
-请生成JSON格式的场景设计卡：
-```json
+请生成JSON格式的场景设计卡。
+【重要】请直接输出纯JSON文本，不要用```json代码块包裹，不要添加任何markdown格式标记。
+
 {{
   "scene_sheet": {{
     "name": "场景名称",
@@ -663,7 +664,7 @@ SCENE_DESIGN_PROMPT = """你是一个AI漫剧场景设计专家，精通场景�
     "close": "近景提示词（聚焦细节元素）"
   }}
 }}
-```"""
+"""
 
 NOVEL_ADAPTATION_PROMPT = """你是一个专业的小说改编剧本专家，擅长将长篇小说压缩改编为高密度短剧。
 
@@ -682,8 +683,9 @@ NOVEL_ADAPTATION_PROMPT = """你是一个专业的小说改编剧本专家，擅
 
 {novel_content}
 
-请按以下JSON格式输出，每个字段都要尽量详细：
-```json
+请按以下JSON格式输出，每个字段都要尽量详细。
+【重要】请直接输出纯JSON文本，不要用```json代码块包裹，不要添加任何markdown格式标记。
+
 {{
   "title": "剧名",
   "genre": "题材",
@@ -753,7 +755,7 @@ NOVEL_ADAPTATION_PROMPT = """你是一个专业的小说改编剧本专家，擅
           "dialogue": "台词（含情绪标注）",
           "sound_effects": "音效",
           "duration": 3.0,
-          "ai_prompt": "AI绘图提示词（风格+主体+场景+动作+镜头+光影+约束词）",
+          "ai_prompt": "AI绘图提示词（自然语言段落描述画面）",
           "lighting": "光影",
           "emotion": "情绪",
           "hook_type": "钩子类型",
@@ -763,7 +765,7 @@ NOVEL_ADAPTATION_PROMPT = """你是一个专业的小说改编剧本专家，擅
     }}
   ]
 }}
-```"""
+"""
 
 
 class ScriptGenerator:
@@ -796,6 +798,7 @@ class ScriptGenerator:
 
         try:
             # Phase 1: Story Planning
+            self._active_tasks[task_id].current_phase = "正在策划故事"
             self._active_tasks[task_id].progress = 5.0
             story_plan = await self._plan_story(request)
             if not story_plan:
@@ -806,6 +809,7 @@ class ScriptGenerator:
             self._active_tasks[task_id].progress = 15.0
 
             # Phase 2: Generate character designs
+            self._active_tasks[task_id].current_phase = "正在设计角色"
             characters = []
             for char_data in story_plan.get("characters", []):
                 # Ensure all fields are strings (AI may return int for age)
@@ -833,6 +837,7 @@ class ScriptGenerator:
             episodes = []
             for ep_num in range(1, request.episode_count + 1):
                 self._active_tasks[task_id].current_episode = ep_num
+                self._active_tasks[task_id].current_phase = f"正在创作第 {ep_num}/{request.episode_count} 集"
                 self._active_tasks[task_id].progress = 20.0 + (ep_num / request.episode_count) * 75.0
 
                 ep_plan = {}
@@ -857,6 +862,7 @@ class ScriptGenerator:
                     kb.extract_entities_from_episode(episode)
 
             # Phase 4: Build final script
+            self._active_tasks[task_id].current_phase = "正在组装最终剧本"
             script = Script(
                 id=task_id,
                 title=story_plan.get("title", request.topic),
@@ -922,18 +928,16 @@ class ScriptGenerator:
 4. 重要道具也要有AI绘图提示词
 5. 表情和动作的提示词要详细可用
 6. 【最重要】必须设计一个贯穿全剧的核心悬念钩子（core_mystery），在第1集开头就展示出来，但答案要到至少第5集之后才逐步揭晓。这个悬念是观众持续观看的核心动力。
-7. AI绘图提示词参考Seedance 2.0标准：风格先行、主体描述精准、动作写慢不写快、镜头语言明确"""
+7. AI绘图提示词使用自然语言段落描述，像导演给摄影师的口述指令，不要使用逗号拼接关键词"""
 
         messages = [
             {"role": "system", "content": STORY_PLANNER_PROMPT},
             {"role": "user", "content": prompt},
         ]
 
-        response = await ai_client.chat(messages, temperature=0.9, max_tokens=8192)
-        logger.info(f"Phase 1: LLM response received, length={len(response)}")
-        result = self._extract_json(response)
+        result = await self._call_and_extract_json(messages, temperature=0.9, max_tokens=8192)
         if not result:
-            logger.error(f"Story planning returned empty JSON. Response was: {response[:500]}")
+            logger.error("Story planning returned empty JSON after retries")
         else:
             logger.info(f"Phase 1: Story plan extracted, title={result.get('title', '?')}")
         return result
@@ -990,19 +994,18 @@ class ScriptGenerator:
 
 请严格按照系统提示中的JSON格式输出。确保：
 1. 开头3秒是强钩子{'' if ep_num > 1 else '（第1集必须是核心悬念钩子，要足够震撼）'}
-2. 每个分镜都有完整的AI绘图提示词（Seedance 2.0标准：风格先行、描述精准、动作写慢不写快）
+2. 每个分镜都有完整的AI绘图提示词（自然语言段落描述，像导演给摄影师的口述指令）
 3. 台词口语化、有网感
 4. 结尾是悬念
 5. 与前几集保持剧情连贯
-6. ai_prompt使用Seedance 2.0标准格式：风格+主体+场景+动作+镜头+光影+约束词"""
+6. ai_prompt使用自然语言段落描述画面，不要使用逗号拼接关键词"""
 
         messages = [
             {"role": "system", "content": EPISODE_GENERATOR_PROMPT},
             {"role": "user", "content": prompt},
         ]
 
-        response = await ai_client.chat(messages, temperature=0.85, max_tokens=8192)
-        data = self._extract_json(response)
+        data = await self._call_and_extract_json(messages, temperature=0.85, max_tokens=8192)
 
         if not data:
             return Episode(
@@ -1153,8 +1156,37 @@ class ScriptGenerator:
         fixed = re.sub(r'//.*?\n', '\n', fixed)
         # Remove trailing commas before } or ]
         fixed = re.sub(r',\s*([\]}])', r'\1', fixed)
-        # Fix unescaped newlines in strings
-        fixed = fixed.replace('\n', '\\n') if '\\n' not in fixed else fixed
+        # Fix unescaped newlines inside JSON strings
+        # Replace literal newlines between structural JSON characters with spaces
+        fixed = re.sub(r'(?<=[^\n])\n(?=[^{}\[\]"\s])', ' ', fixed)
+        # Escape literal newlines/tabs that remain inside string values
+        result = []
+        in_str = False
+        esc = False
+        for ch in fixed:
+            if esc:
+                result.append(ch)
+                esc = False
+                continue
+            if ch == '\\' and in_str:
+                result.append(ch)
+                esc = True
+                continue
+            if ch == '"':
+                in_str = not in_str
+                result.append(ch)
+                continue
+            if in_str and ch == '\n':
+                result.append('\\n')
+                continue
+            if in_str and ch == '\t':
+                result.append('\\t')
+                continue
+            if in_str and ch == '\r':
+                result.append('\\r')
+                continue
+            result.append(ch)
+        fixed = ''.join(result)
 
         try:
             return json.loads(fixed)
@@ -1197,6 +1229,26 @@ class ScriptGenerator:
         except (json.JSONDecodeError, Exception):
             pass
 
+        return {}
+
+    async def _call_and_extract_json(self, messages: list[dict], temperature: float = 0.8, max_tokens: int = 8192, max_retries: int = 2) -> dict:
+        """Call LLM and extract JSON, retrying if parsing fails."""
+        last_response = ""
+        for attempt in range(max_retries + 1):
+            response = await ai_client.chat(messages, temperature=temperature, max_tokens=max_tokens)
+            last_response = response
+            result = self._extract_json(response)
+            if result:
+                return result
+
+            logger.warning(f"JSON extraction failed on attempt {attempt + 1}/{max_retries + 1}, retrying...")
+            # Add the failed response and a correction prompt for retry
+            messages = messages + [
+                {"role": "assistant", "content": response},
+                {"role": "user", "content": "你的输出无法解析为JSON。请直接输出纯JSON文本，不要用```json代码块包裹，不要添加任何markdown格式标记，不要包含任何解释文字。重新输出："},
+            ]
+
+        logger.error(f"JSON extraction failed after {max_retries + 1} attempts. Last response: {last_response[:500]}")
         return {}
 
     async def adapt_novel(self, novel_content: str, episode_count: int = 8, genre: str = "重生", style: str = "古风") -> dict:
@@ -1345,9 +1397,7 @@ class ScriptGenerator:
             {"role": "user", "content": prompt},
         ]
 
-        response = await ai_client.chat(messages, temperature=0.8, max_tokens=8192)
-        result = self._extract_json(response)
-        return result
+        return await self._call_and_extract_json(messages, temperature=0.8, max_tokens=8192)
 
     async def _enhance_asset_designs(self, story_plan: dict) -> dict:
         """Enhance character, scene, and prop designs with detailed AI prompts."""
@@ -1410,12 +1460,11 @@ class ScriptGenerator:
             clothing=char_data.get("clothing", ""),
         )
 
-        response = await ai_client.chat([
+        design = await self._call_and_extract_json([
             {"role": "system", "content": "你是一个AI漫剧角色设计专家。请根据角色信息生成完整的设计卡。"},
             {"role": "user", "content": prompt},
         ], temperature=0.7, max_tokens=4096)
 
-        design = self._extract_json(response)
         if not design:
             return char_data
 
@@ -1451,12 +1500,11 @@ class ScriptGenerator:
             atmosphere=scene_data.get("atmosphere", ""),
         )
 
-        response = await ai_client.chat([
+        design = await self._call_and_extract_json([
             {"role": "system", "content": "你是一个AI漫剧场景设计专家。请根据场景信息生成完整的设计卡。"},
             {"role": "user", "content": prompt},
         ], temperature=0.7, max_tokens=4096)
 
-        design = self._extract_json(response)
         if not design:
             return scene_data
 
@@ -1482,9 +1530,7 @@ class ScriptGenerator:
             {"role": "user", "content": prompt},
         ]
 
-        response = await ai_client.chat(messages, temperature=0.8, max_tokens=8192)
-        result = self._extract_json(response)
-        return result
+        return await self._call_and_extract_json(messages, temperature=0.8, max_tokens=8192)
 
     def _split_chapters(self, text: str) -> list[str]:
         """Split novel text into chapters using common patterns."""
@@ -1530,11 +1576,11 @@ class ScriptGenerator:
 
     async def _extract_novel_overview(self, text: str, genre: str, style: str) -> dict:
         """Extract novel overview from early chapters."""
-        prompt = f"""请从以下小说开头内容中提取关键信息，输出JSON格式：
+        prompt = f"""请从以下小说开头内容中提取关键信息，输出JSON格式。
+【重要】请直接输出纯JSON文本，不要用```json代码块包裹。
 
 {text[:6000]}
 
-```json
 {{
   "title": "小说标题",
   "main_characters": ["主要角色1", "主要角色2", "主要角色3"],
@@ -1543,15 +1589,13 @@ class ScriptGenerator:
   "setting": "故事背景",
   "time_period": "时代背景",
   "key_relationships": "关键人物关系"
-}}
-```"""
+}}"""
 
         try:
-            response = await ai_client.chat([
+            return await self._call_and_extract_json([
                 {"role": "system", "content": "你是一个小说分析专家，擅长提取小说核心信息。"},
                 {"role": "user", "content": prompt},
             ], temperature=0.3, max_tokens=1000)
-            return self._extract_json(response)
         except Exception as e:
             logger.error(f"Novel overview extraction failed: {e}")
             return {"title": "未命名", "main_characters": [], "core_conflict": "", "synopsis": ""}

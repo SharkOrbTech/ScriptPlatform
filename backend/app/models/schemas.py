@@ -125,6 +125,7 @@ class ScriptResponse(BaseModel):
     progress: float = 0.0
     current_episode: int = 0
     total_episodes: int = 0
+    current_phase: str = ""
     script: Optional[Script] = None
     error: str = ""
 
