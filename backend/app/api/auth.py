@@ -145,10 +145,10 @@ async def change_password(
 
 
 async def create_default_admin(db: AsyncSession):
-    """Create default admin account if no users exist."""
-    result = await db.execute(select(UserDB))
+    """Create default admin account if it doesn't exist."""
+    result = await db.execute(select(UserDB).where(UserDB.username == "admin"))
     if result.scalar_one_or_none() is not None:
-        return  # Users already exist
+        return  # Admin already exists
 
     admin = UserDB(
         id=str(uuid.uuid4()),
