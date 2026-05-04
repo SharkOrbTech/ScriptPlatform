@@ -215,7 +215,7 @@ function App() {
       </header>
 
       {/* Main Content */}
-      <main className="mx-auto px-6 sm:px-10 lg:px-16 py-6">
+      <main className="w-full mx-auto px-6 sm:px-10 lg:px-16 py-6">
         <Routes>
           <Route path="/" element={<ProtectedRoute><TrendsPage /></ProtectedRoute>} />
           <Route path="/generate" element={<ProtectedRoute><GeneratorPage /></ProtectedRoute>} />
