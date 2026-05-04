@@ -1000,7 +1000,8 @@ class ScriptGenerator:
 3. 台词口语化、有网感
 4. 结尾是悬念
 5. 与前几集保持剧情连贯
-6. ai_prompt使用自然语言段落描述画面，不要使用逗号拼接关键词"""
+6. ai_prompt使用自然语言段落描述画面，不要使用逗号拼接关键词
+7. 如果知识库上下文中包含"本集必须包含的原著钩子"，请在对应分镜的hook_type和hook_detail中标记这些钩子"""
 
         messages = [
             {"role": "system", "content": EPISODE_GENERATOR_PROMPT},
@@ -1273,12 +1274,13 @@ class ScriptGenerator:
         overview = await self._extract_novel_overview(overview_text, genre, style)
         logger.info(f"Novel overview extracted: {overview.get('title', 'unknown')}")
 
-        # Phase 1.5: For long novels, batch-summarize all chapters
+        # Phase 1.5: For long novels, batch-summarize chapters and extract hooks
         chapter_summaries = []
+        chapter_hooks = []
         if total_chars > 50000 or len(chapters) > 20:
-            logger.info(f"Long novel detected ({total_chars} chars, {len(chapters)} chapters), batch-summarizing...")
-            chapter_summaries = await self._batch_summarize_chapters(chapters)
-            logger.info(f"Summarized {len(chapter_summaries)} chapters")
+            logger.info(f"Long novel detected ({total_chars} chars, {len(chapters)} chapters), batch-summarizing and extracting hooks...")
+            chapter_summaries, chapter_hooks = await self._batch_summarize_and_extract_hooks(chapters)
+            logger.info(f"Summarized {len(chapter_summaries)} chapters, extracted {len(chapter_hooks)} hooks")
         elif len(chapters) > 10:
             # Medium novel: sample key chapters
             sample_indices = list(range(min(5, len(chapters))))
@@ -1309,6 +1311,24 @@ class ScriptGenerator:
 
 【关键章节原文】
 {key_chapters_text}
+"""
+            # Add hook index to context
+            if chapter_hooks:
+                type_labels = {
+                    "hook": "开头爆点", "cliffhanger": "章末悬念", "foreshadowing": "伏笔",
+                    "turning_point": "情节转折", "emotional_peak": "情感高潮",
+                    "revelation": "真相揭露", "conflict": "冲突爆发",
+                }
+                pos_labels = {"start": "开头", "middle": "中段", "end": "末尾"}
+                hooks_lines = []
+                for h in chapter_hooks:
+                    label = type_labels.get(h["type"], h["type"])
+                    pos = pos_labels.get(h["position"], h["position"])
+                    hooks_lines.append(f"第{h['chapter']}章({pos}): {label} - {h['description']}")
+                novel_context += f"""
+
+【原著钩子索引】（改编时必须保留这些关键钩子，用于设置集末悬念和开头爆点）
+{chr(10).join(hooks_lines)}
 """
         else:
             # Short novel: use condensed full text
@@ -1369,13 +1389,27 @@ class ScriptGenerator:
 
             context = kb.get_context_for_episode(ep_num)
 
-            # For long novels, add relevant chapter summaries to context
+            # For long novels, add relevant chapter summaries and hooks to context
             if chapter_summaries:
                 ch_start = int((ep_num - 1) * ch_per_ep)
                 ch_end = int(ep_num * ch_per_ep)
                 ep_chapter_summaries = chapter_summaries[ch_start:ch_end]
                 if ep_chapter_summaries:
                     context += f"\n\n## 本集对应原著章节\n{chr(10).join(ep_chapter_summaries)}"
+
+                # Add hooks for this episode's chapter range
+                ep_hooks = [h for h in chapter_hooks if ch_start < h["chapter"] <= ch_end]
+                if ep_hooks:
+                    type_labels = {
+                        "hook": "开头爆点", "cliffhanger": "章末悬念", "foreshadowing": "伏笔",
+                        "turning_point": "情节转折", "emotional_peak": "情感高潮",
+                        "revelation": "真相揭露", "conflict": "冲突爆发",
+                    }
+                    hooks_lines = []
+                    for h in ep_hooks:
+                        label = type_labels.get(h["type"], h["type"])
+                        hooks_lines.append(f"- {label}: {h['description']}")
+                    context += f"\n\n## 本集必须包含的原著钩子\n{chr(10).join(hooks_lines)}"
 
             try:
                 episode = await self._generate_episode(
@@ -1419,9 +1453,10 @@ class ScriptGenerator:
         logger.info(f"Novel adaptation complete: {result['title']} with {len(episodes)} episodes")
         return result
 
-    async def _batch_summarize_chapters(self, chapters: list[str], batch_size: int = 5) -> list[str]:
-        """Summarize chapters in batches using LLM. Handles arbitrarily long novels."""
+    async def _batch_summarize_and_extract_hooks(self, chapters: list[str], batch_size: int = 5) -> tuple[list[str], list[dict]]:
+        """Summarize chapters and extract hooks in batches. Returns (summaries, hooks)."""
         all_summaries = []
+        all_hooks = []
         total = len(chapters)
 
         for batch_start in range(0, total, batch_size):
@@ -1432,40 +1467,68 @@ class ScriptGenerator:
             batch_text = ""
             for i, ch in enumerate(batch):
                 ch_num = batch_start + i + 1
-                # Truncate very long chapters but keep more content
                 ch_content = ch[:3000] if len(ch) > 3000 else ch
                 batch_text += f"\n--- 第{ch_num}章 ---\n{ch_content}\n"
 
-            prompt = f"""请为以下每一章生成简短摘要（每章50-100字），保留关键人物、事件、冲突和转折点。
+            prompt = f"""请为以下每一章完成两个任务：
+1. 生成简短摘要（50-100字），保留关键人物、事件、冲突和转折点
+2. 提取该章中的钩子元素（悬念、爆点、反转、伏笔、情感高潮等）
+
+钩子类型说明：
+- hook: 开头爆点，3秒内抓住观众
+- cliffhanger: 章末悬念，让人想看下一章
+- foreshadowing: 伏笔，暗示后续剧情
+- turning_point: 情节转折，局势逆转
+- emotional_peak: 情感高潮，最煽情/最爽的时刻
+- revelation: 真相揭露，秘密曝光
+- conflict: 核心冲突爆发
 
 {batch_text}
 
 请直接输出纯JSON数组，格式如下：
 [
-  {{"chapter": {batch_start + 1}, "summary": "第{batch_start + 1}章摘要内容"}},
-  {{"chapter": {batch_start + 2}, "summary": "第{batch_start + 2}章摘要内容"}}
-]"""
+  {{
+    "chapter": {batch_start + 1},
+    "summary": "第{batch_start + 1}章摘要",
+    "hooks": [
+      {{"type": "cliffhanger", "description": "钩子描述", "position": "end"}},
+      {{"type": "foreshadowing", "description": "伏笔描述", "position": "middle"}}
+    ]
+  }}
+]
+
+每章提取0-3个最有价值的钩子。position为start/middle/end。如果没有明显钩子，hooks数组为空。"""
 
             try:
                 result = await self._call_and_extract_json([
-                    {"role": "system", "content": "你是一个小说分析专家，擅长提取章节核心信息。请直接输出纯JSON数组。"},
+                    {"role": "system", "content": "你是一个小说分析专家，擅长提取章节核心信息和钩子元素。请直接输出纯JSON数组。"},
                     {"role": "user", "content": prompt},
-                ], temperature=0.3, max_tokens=2000)
+                ], temperature=0.3, max_tokens=3000)
 
+                items = []
                 if isinstance(result, list):
-                    for item in result:
-                        ch_num = item.get("chapter", 0)
-                        summary = item.get("summary", "")
-                        if summary:
-                            all_summaries.append(f"第{ch_num}章: {summary}")
+                    items = result
                 elif isinstance(result, dict) and "chapters" in result:
-                    for item in result["chapters"]:
+                    items = result["chapters"]
+
+                if items:
+                    for item in items:
                         ch_num = item.get("chapter", 0)
                         summary = item.get("summary", "")
                         if summary:
                             all_summaries.append(f"第{ch_num}章: {summary}")
+                        for hook in item.get("hooks", []):
+                            hook_type = hook.get("type", "")
+                            desc = hook.get("description", "")
+                            position = hook.get("position", "end")
+                            if hook_type and desc:
+                                all_hooks.append({
+                                    "chapter": ch_num,
+                                    "type": hook_type,
+                                    "description": desc,
+                                    "position": position,
+                                })
                 else:
-                    # Fallback: use first 200 chars as summary
                     for i, ch in enumerate(batch):
                         ch_num = batch_start + i + 1
                         all_summaries.append(f"第{ch_num}章: {ch[:200]}...")
@@ -1474,12 +1537,11 @@ class ScriptGenerator:
 
             except Exception as e:
                 logger.error(f"Batch summarization failed for chapters {batch_start + 1}-{batch_end}: {e}")
-                # Fallback: use first 200 chars
                 for i, ch in enumerate(batch):
                     ch_num = batch_start + i + 1
                     all_summaries.append(f"第{ch_num}章: {ch[:200]}...")
 
-        return all_summaries
+        return all_summaries, all_hooks
 
     def _get_key_chapters_text(self, chapters: list[str], episode_count: int) -> str:
         """Extract full text of key chapters: first, last, and climax points."""
