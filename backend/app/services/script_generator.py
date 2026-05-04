@@ -49,6 +49,8 @@ STORY_PLANNER_PROMPT = """你是一个顶级短剧编剧策划专家，精通爆
 - 第40-60集：转折期，真相逐步浮现（希望→失望交替）
 - 第60-80集：终极冲突，反派最后反扑（紧张感最高）
 - 第80-100集：大结局，所有线索收束（爽感爆发→圆满）
+- 第100-150集（超长剧）：多条支线展开，新势力登场，中期大反转，分阶段收束
+- 第150-200集（超长剧）：主线分幕推进，每50集一个小高潮，最终大决战
 - 付费卡点：第8-10集设第一个付费卡点，后续每20集左右设一个
 
 【钩子技法体系】
@@ -1256,22 +1258,29 @@ class ScriptGenerator:
 
         Multi-phase pipeline:
         1. Split novel into chapters, extract overview
-        2. Generate story plan (characters, scenes, props, world rules) via LLM
-        3. Generate detailed character/scene/prop design cards via LLM
-        4. Generate per-episode full storyboards via LLM with knowledge base context
-        5. Assemble final result
+        2. For long novels: batch-summarize all chapters via LLM
+        3. Generate story plan (characters, scenes, props, world rules) via LLM
+        4. Generate detailed character/scene/prop design cards via LLM
+        5. Generate per-episode full storyboards via LLM with knowledge base context
+        6. Assemble final result
         """
         # Phase 1: Split novel into chapters and extract overview
         chapters = self._split_chapters(novel_content)
-        logger.info(f"Novel split into {len(chapters)} chapters")
+        total_chars = len(novel_content)
+        logger.info(f"Novel split into {len(chapters)} chapters, total {total_chars} chars")
 
         overview_text = "\n\n".join(chapters[:5])[:8000]
         overview = await self._extract_novel_overview(overview_text, genre, style)
         logger.info(f"Novel overview extracted: {overview.get('title', 'unknown')}")
 
-        # Build condensed novel for AI
+        # Phase 1.5: For long novels, batch-summarize all chapters
         chapter_summaries = []
-        if len(chapters) > 10:
+        if total_chars > 50000 or len(chapters) > 20:
+            logger.info(f"Long novel detected ({total_chars} chars, {len(chapters)} chapters), batch-summarizing...")
+            chapter_summaries = await self._batch_summarize_chapters(chapters)
+            logger.info(f"Summarized {len(chapter_summaries)} chapters")
+        elif len(chapters) > 10:
+            # Medium novel: sample key chapters
             sample_indices = list(range(min(5, len(chapters))))
             mid = len(chapters) // 2
             sample_indices.extend([mid - 1, mid, mid + 1])
@@ -1281,21 +1290,43 @@ class ScriptGenerator:
                 summary = chapters[idx][:1000]
                 chapter_summaries.append(f"第{idx+1}章摘要: {summary}")
 
-        if len(chapters) <= episode_count * 2:
-            condensed = novel_content[:20000]
-        else:
-            chapters_per_ep = len(chapters) / episode_count
-            selected = []
-            for ep in range(episode_count):
-                start_idx = int(ep * chapters_per_ep)
-                end_idx = int((ep + 1) * chapters_per_ep)
-                if start_idx < len(chapters):
-                    selected.append(chapters[start_idx][:1500])
-                if end_idx - 1 > start_idx and end_idx - 1 < len(chapters):
-                    selected.append(chapters[end_idx - 1][:1500])
-            condensed = "\n\n[分隔]\n\n".join(selected)[:20000]
+        # Build novel context for story planning
+        if chapter_summaries:
+            # Long novel: use chapter summaries + key chapter full text
+            key_chapters_text = self._get_key_chapters_text(chapters, episode_count)
+            novel_context = f"""【小说基本信息】
+标题: {overview.get('title', '未知')}
+题材: {genre}
+风格: {style}
+总字数: {total_chars}
+总章数: {len(chapters)}
+主要角色: {', '.join(overview.get('main_characters', []))}
+核心冲突: {overview.get('core_conflict', '')}
+故事梗概: {overview.get('synopsis', '')}
 
-        novel_context = f"""【小说基本信息】
+【全部章节摘要】
+{chr(10).join(chapter_summaries)}
+
+【关键章节原文】
+{key_chapters_text}
+"""
+        else:
+            # Short novel: use condensed full text
+            if len(chapters) <= episode_count * 2:
+                condensed = novel_content[:20000]
+            else:
+                chapters_per_ep = len(chapters) / episode_count
+                selected = []
+                for ep in range(episode_count):
+                    start_idx = int(ep * chapters_per_ep)
+                    end_idx = int((ep + 1) * chapters_per_ep)
+                    if start_idx < len(chapters):
+                        selected.append(chapters[start_idx][:1500])
+                    if end_idx - 1 > start_idx and end_idx - 1 < len(chapters):
+                        selected.append(chapters[end_idx - 1][:1500])
+                condensed = "\n\n[分隔]\n\n".join(selected)[:20000]
+
+            novel_context = f"""【小说基本信息】
 标题: {overview.get('title', '未知')}
 题材: {genre}
 风格: {style}
@@ -1306,8 +1337,8 @@ class ScriptGenerator:
 【原著关键章节】
 {condensed}
 """
-        if chapter_summaries:
-            novel_context += f"\n\n【章节摘要】\n{chr(10).join(chapter_summaries[:15])}"
+            if chapter_summaries:
+                novel_context += f"\n\n【章节摘要】\n{chr(10).join(chapter_summaries[:15])}"
 
         # Phase 2: Generate story plan (characters, scenes, props, world rules)
         logger.info("Phase 2: Generating story plan from novel...")
@@ -1325,6 +1356,9 @@ class ScriptGenerator:
         kb = KnowledgeBase(f"novel_adapt_{uuid.uuid4().hex[:8]}")
         self._init_knowledge_base(kb, enhanced_plan)
 
+        # Build chapter-to-episode mapping for long novels
+        ch_per_ep = len(chapters) / episode_count if episode_count > 0 else 1
+
         episodes = []
         for ep_num in range(1, episode_count + 1):
             logger.info(f"Generating episode {ep_num}/{episode_count}...")
@@ -1334,6 +1368,15 @@ class ScriptGenerator:
                 ep_plan = ep_plans[ep_num - 1]
 
             context = kb.get_context_for_episode(ep_num)
+
+            # For long novels, add relevant chapter summaries to context
+            if chapter_summaries:
+                ch_start = int((ep_num - 1) * ch_per_ep)
+                ch_end = int(ep_num * ch_per_ep)
+                ep_chapter_summaries = chapter_summaries[ch_start:ch_end]
+                if ep_chapter_summaries:
+                    context += f"\n\n## 本集对应原著章节\n{chr(10).join(ep_chapter_summaries)}"
+
             try:
                 episode = await self._generate_episode(
                     ep_num,
@@ -1375,6 +1418,100 @@ class ScriptGenerator:
         }
         logger.info(f"Novel adaptation complete: {result['title']} with {len(episodes)} episodes")
         return result
+
+    async def _batch_summarize_chapters(self, chapters: list[str], batch_size: int = 5) -> list[str]:
+        """Summarize chapters in batches using LLM. Handles arbitrarily long novels."""
+        all_summaries = []
+        total = len(chapters)
+
+        for batch_start in range(0, total, batch_size):
+            batch_end = min(batch_start + batch_size, total)
+            batch = chapters[batch_start:batch_end]
+
+            # Build batch prompt
+            batch_text = ""
+            for i, ch in enumerate(batch):
+                ch_num = batch_start + i + 1
+                # Truncate very long chapters but keep more content
+                ch_content = ch[:3000] if len(ch) > 3000 else ch
+                batch_text += f"\n--- 第{ch_num}章 ---\n{ch_content}\n"
+
+            prompt = f"""请为以下每一章生成简短摘要（每章50-100字），保留关键人物、事件、冲突和转折点。
+
+{batch_text}
+
+请直接输出纯JSON数组，格式如下：
+[
+  {{"chapter": {batch_start + 1}, "summary": "第{batch_start + 1}章摘要内容"}},
+  {{"chapter": {batch_start + 2}, "summary": "第{batch_start + 2}章摘要内容"}}
+]"""
+
+            try:
+                result = await self._call_and_extract_json([
+                    {"role": "system", "content": "你是一个小说分析专家，擅长提取章节核心信息。请直接输出纯JSON数组。"},
+                    {"role": "user", "content": prompt},
+                ], temperature=0.3, max_tokens=2000)
+
+                if isinstance(result, list):
+                    for item in result:
+                        ch_num = item.get("chapter", 0)
+                        summary = item.get("summary", "")
+                        if summary:
+                            all_summaries.append(f"第{ch_num}章: {summary}")
+                elif isinstance(result, dict) and "chapters" in result:
+                    for item in result["chapters"]:
+                        ch_num = item.get("chapter", 0)
+                        summary = item.get("summary", "")
+                        if summary:
+                            all_summaries.append(f"第{ch_num}章: {summary}")
+                else:
+                    # Fallback: use first 200 chars as summary
+                    for i, ch in enumerate(batch):
+                        ch_num = batch_start + i + 1
+                        all_summaries.append(f"第{ch_num}章: {ch[:200]}...")
+
+                logger.info(f"Summarized chapters {batch_start + 1}-{batch_end}/{total}")
+
+            except Exception as e:
+                logger.error(f"Batch summarization failed for chapters {batch_start + 1}-{batch_end}: {e}")
+                # Fallback: use first 200 chars
+                for i, ch in enumerate(batch):
+                    ch_num = batch_start + i + 1
+                    all_summaries.append(f"第{ch_num}章: {ch[:200]}...")
+
+        return all_summaries
+
+    def _get_key_chapters_text(self, chapters: list[str], episode_count: int) -> str:
+        """Extract full text of key chapters: first, last, and climax points."""
+        key_indices = set()
+        total = len(chapters)
+
+        # First 2 chapters
+        key_indices.update(range(min(2, total)))
+
+        # Last 2 chapters
+        key_indices.update(range(max(0, total - 2), total))
+
+        # Climax points (roughly at 25%, 50%, 75% of the story)
+        for pct in [0.25, 0.5, 0.75]:
+            idx = int(total * pct)
+            key_indices.add(idx)
+
+        # Chapter-to-episode boundaries
+        if episode_count > 0:
+            ch_per_ep = total / episode_count
+            for ep in range(episode_count):
+                idx = int(ep * ch_per_ep)
+                key_indices.add(idx)
+
+        key_indices = sorted(i for i in key_indices if 0 <= i < total)
+
+        parts = []
+        for idx in key_indices:
+            ch_text = chapters[idx][:2000]
+            parts.append(f"--- 第{idx + 1}章 ---\n{ch_text}")
+
+        return "\n\n".join(parts)[:15000]
 
     async def _adapt_story_plan(self, novel_context: str, genre: str, style: str, episode_count: int) -> dict:
         """Generate story plan from novel content."""

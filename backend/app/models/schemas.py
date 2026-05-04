@@ -38,7 +38,7 @@ class ScriptGenre(str, Enum):
 class ScriptRequest(BaseModel):
     topic: str = Field(..., description="剧本主题/话题")
     genre: str = Field(default="重生", description="题材类型")
-    episode_count: int = Field(default=8, ge=3, le=30, description="集数")
+    episode_count: int = Field(default=8, ge=3, le=200, description="集数")
     episode_duration: int = Field(default=90, ge=30, le=300, description="每集时长(秒)")
     target_audience: str = Field(default="18-35岁女性", description="目标受众")
     style: str = Field(default="古风", description="漫剧风格")

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useLocation, Link } from 'react-router-dom'
 import { api } from '../services/api'
-import { exportToMarkdown, exportToDocx } from '../services/exportUtils'
+import { exportToMarkdown, exportToDocx, exportToZip } from '../services/exportUtils'
 
 export default function ScriptViewerPage() {
   const { scriptId } = useParams()
@@ -154,13 +154,21 @@ export default function ScriptViewerPage() {
           <div className="relative">
             <button className="btn btn-ghost text-sm" onClick={(e) => { e.stopPropagation(); setShowExportMenu(!showExportMenu) }}>导出</button>
             {showExportMenu && (
-              <div className="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border border-ink-100 py-1 z-50">
+              <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-ink-100 py-1 z-50">
                 <button className="w-full text-left px-4 py-2 text-sm text-ink-700 hover:bg-ink-50" onClick={() => { exportToMarkdown(script); setShowExportMenu(false) }}>
                   导出为 Markdown
                 </button>
                 <button className="w-full text-left px-4 py-2 text-sm text-ink-700 hover:bg-ink-50" onClick={() => { exportToDocx(script); setShowExportMenu(false) }}>
                   导出为 DOCX
                 </button>
+                <div className="border-t border-ink-100 my-1" />
+                <button className="w-full text-left px-4 py-2 text-sm text-ink-700 hover:bg-ink-50" onClick={() => { exportToZip(script, 'md'); setShowExportMenu(false) }}>
+                  打包 ZIP (Markdown)
+                </button>
+                <button className="w-full text-left px-4 py-2 text-sm text-ink-700 hover:bg-ink-50" onClick={() => { exportToZip(script, 'docx'); setShowExportMenu(false) }}>
+                  打包 ZIP (DOCX)
+                </button>
+                <div className="border-t border-ink-100 my-1" />
                 <button className="w-full text-left px-4 py-2 text-sm text-ink-700 hover:bg-ink-50" onClick={() => { window.print(); setShowExportMenu(false) }}>
                   打印
                 </button>

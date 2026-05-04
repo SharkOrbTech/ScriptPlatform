@@ -130,9 +130,9 @@ async def upload_novel(
     if not text:
         raise HTTPException(status_code=400, detail="无法解码文件，请使用UTF-8或GBK编码")
 
-    # Limit size
-    if len(text) > 500000:
-        text = text[:500000]
+    # Limit size to 10M characters (supports very long novels)
+    if len(text) > 10000000:
+        text = text[:10000000]
 
     result = await script_generator.adapt_novel(
         novel_content=text,

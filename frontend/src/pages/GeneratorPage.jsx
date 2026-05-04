@@ -408,7 +408,7 @@ export default function GeneratorPage() {
             <div>
               <label className="label">集数</label>
               <select className="select" value={form.episode_count} onChange={(e) => handleChange('episode_count', Number(e.target.value))}>
-                {[3, 5, 8, 10, 12, 15, 20, 30].map(n => <option key={n} value={n}>{n}集</option>)}
+                {[3, 5, 8, 10, 12, 15, 20, 30, 50, 80, 100, 120, 150, 200].map(n => <option key={n} value={n}>{n}集</option>)}
               </select>
             </div>
             <div>
