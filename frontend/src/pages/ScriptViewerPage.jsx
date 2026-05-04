@@ -442,6 +442,12 @@ function ShotCard({ shot, showAll }) {
           <div className="text-xs font-medium text-ink-500 mb-0.5">画面内容</div>
           <p className={`text-sm text-ink-800 ${hookInfo ? `inline ${hookInfo.textBg} px-1 rounded` : ''}`}>{shot.frame_content}</p>
         </div>
+        {shot.narration && (
+          <div>
+            <div className="text-xs font-medium text-ink-500 mb-0.5">旁白</div>
+            <p className="text-sm text-ink-700 italic bg-amber-50 border-l-2 border-amber-300 pl-2 py-1 rounded-r">「{shot.narration}」</p>
+          </div>
+        )}
         {shot.dialogue && (
           <div>
             <div className="text-xs font-medium text-ink-500 mb-0.5">台词</div>

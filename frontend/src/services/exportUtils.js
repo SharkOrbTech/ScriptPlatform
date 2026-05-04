@@ -69,6 +69,7 @@ function buildMarkdown(script) {
         for (const shot of ep.shots) {
           lines.push(`**镜头 ${shot.shot_number}** [${shot.shot_type || '-'}] [${shot.camera_movement || '-'}]`)
           if (shot.frame_content) lines.push(`画面: ${shot.frame_content}`)
+          if (shot.narration) lines.push(`旁白: ${shot.narration}`)
           if (shot.dialogue) lines.push(`台词: ${shot.dialogue}`)
           if (shot.ai_prompt) lines.push(`AI提示词: ${shot.ai_prompt}`)
           if (shot.hook_type) lines.push(`钩子类型: ${shot.hook_type} - ${shot.hook_detail || ''}`)
@@ -225,6 +226,11 @@ export function exportToDocx(script) {
           if (shot.frame_content) {
             children.push(new Paragraph({
               children: [new TextRun({ text: `画面: ${shot.frame_content}`, size: 22 })],
+            }))
+          }
+          if (shot.narration) {
+            children.push(new Paragraph({
+              children: [new TextRun({ text: `旁白: ${shot.narration}`, size: 22, italics: true, color: '666666' })],
             }))
           }
           if (shot.dialogue) {

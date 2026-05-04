@@ -52,6 +52,7 @@ class Shot(BaseModel):
     camera_movement: str  # 推/拉/摇/移/跟/固定
     frame_content: str  # 画面内容描述
     dialogue: str = ""  # 台词
+    narration: str = ""  # 旁白/画外音（内心独白、解说、回忆旁白等）
     sound_effects: str = ""  # 音效
     duration: float = 3.0  # 时长(秒)
     ai_prompt: str = ""  # AI绘图提示词
