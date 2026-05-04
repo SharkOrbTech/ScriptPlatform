@@ -40,7 +40,7 @@ export function BackgroundTaskProvider({ children }) {
 
 function BackgroundSpinner({ tasks }) {
   return (
-    <div className="fixed bottom-4 right-4 z-50 animate-fade-in">
+    <div className="z-50 animate-fade-in" style={{ position: 'fixed', bottom: 16, right: 16 }}>
       <div className="bg-white border border-ink-200 rounded-xl shadow-lg px-4 py-3 flex items-center gap-3 min-w-[200px]">
         <span className="spinner" style={{ width: 20, height: 20, borderWidth: 2 }} />
         <div className="flex-1 min-w-0">
