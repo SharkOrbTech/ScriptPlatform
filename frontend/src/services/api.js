@@ -1,10 +1,28 @@
 const API_BASE = '/api';
 
+function getToken() {
+  return localStorage.getItem('token');
+}
+
 async function request(url, options = {}) {
+  const token = getToken();
+  const headers = { 'Content-Type': 'application/json', ...options.headers };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const res = await fetch(`${API_BASE}${url}`, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+    headers,
     ...options,
   });
+
+  if (res.status === 401) {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.href = '/login';
+    throw new Error('登录已过期');
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || '请求失败');
@@ -13,6 +31,23 @@ async function request(url, options = {}) {
 }
 
 export const api = {
+  // Auth
+  login: (username, password) =>
+    request('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
+
+  getMe: () => request('/auth/me'),
+
+  createAccount: (username, password) =>
+    request('/auth/create-account', { method: 'POST', body: JSON.stringify({ username, password }) }),
+
+  listAccounts: () => request('/auth/accounts'),
+
+  deleteAccount: (username) =>
+    request(`/auth/accounts/${username}`, { method: 'DELETE' }),
+
+  changePassword: (oldPassword, newPassword) =>
+    request('/auth/change-password', { method: 'POST', body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }) }),
+
   // Trends
   getTrends: (source = 'all', forceRefresh = false) =>
     request(`/trends?source=${source}&force_refresh=${forceRefresh}`),

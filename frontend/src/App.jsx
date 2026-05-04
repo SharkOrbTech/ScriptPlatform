@@ -1,10 +1,12 @@
-import { Routes, Route, Link, useLocation } from 'react-router-dom'
+import { Routes, Route, Link, useLocation, Navigate, useNavigate } from 'react-router-dom'
 import { useState, useEffect, createContext, useContext, useCallback } from 'react'
 import TrendsPage from './pages/TrendsPage'
 import GeneratorPage from './pages/GeneratorPage'
 import ScriptViewerPage from './pages/ScriptViewerPage'
 import NovelUploadPage from './pages/NovelUploadPage'
 import ScriptListPage from './pages/ScriptListPage'
+import LoginPage from './pages/LoginPage'
+import AccountManagementPage from './pages/AccountManagementPage'
 import { api } from './services/api'
 
 // Global background task context
@@ -54,9 +56,35 @@ function BackgroundSpinner({ tasks }) {
   )
 }
 
+function ProtectedRoute({ children }) {
+  const token = localStorage.getItem('token');
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+  return children;
+}
+
 function App() {
   const location = useLocation()
+  const navigate = useNavigate()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [user, setUser] = useState(null)
+
+  useEffect(() => {
+    const stored = localStorage.getItem('user');
+    if (stored) {
+      try {
+        setUser(JSON.parse(stored));
+      } catch {}
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setUser(null);
+    navigate('/login');
+  };
 
   const navItems = [
     { path: '/', label: '热点趋势' },
@@ -64,6 +92,10 @@ function App() {
     { path: '/novel', label: '小说改编' },
     { path: '/scripts', label: '我的剧本' },
   ]
+
+  if (user?.is_admin) {
+    navItems.push({ path: '/accounts', label: '账号管理' });
+  }
 
   const isActive = (path) => {
     if (path === '/') return location.pathname === '/'
@@ -73,6 +105,8 @@ function App() {
   // Background trend fetching on mount
   const { addTask, removeTask } = useBackgroundTask()
   useEffect(() => {
+    if (!localStorage.getItem('token')) return;
+
     const taskId = 'trends-fetch'
     addTask(taskId, '正在获取热点数据...')
     api.getTrendsFetchStatus().then(data => {
@@ -83,6 +117,14 @@ function App() {
       setTimeout(() => removeTask(taskId), 1000)
     })
   }, [])
+
+  if (location.pathname === '/login') {
+    return (
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+      </Routes>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#fafaf8] flex flex-col">
@@ -111,6 +153,18 @@ function App() {
                 </Link>
               ))}
             </nav>
+
+            <div className="hidden md:flex items-center gap-3">
+              {user && (
+                <span className="text-sm text-ink-600">{user.username}</span>
+              )}
+              <button
+                onClick={handleLogout}
+                className="px-3 py-1.5 text-sm text-ink-500 hover:text-ink-700 hover:bg-ink-50 rounded-lg transition-colors"
+              >
+                退出
+              </button>
+            </div>
 
             {/* Mobile menu button */}
             <button
@@ -144,6 +198,17 @@ function App() {
                   {item.label}
                 </Link>
               ))}
+              <div className="border-t border-ink-100 mt-2 pt-2 px-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-ink-600">{user?.username}</span>
+                  <button
+                    onClick={handleLogout}
+                    className="text-sm text-ink-500 hover:text-ink-700"
+                  >
+                    退出
+                  </button>
+                </div>
+              </div>
             </nav>
           )}
         </div>
@@ -152,12 +217,13 @@ function App() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         <Routes>
-          <Route path="/" element={<TrendsPage />} />
-          <Route path="/generate" element={<GeneratorPage />} />
-          <Route path="/generate/:taskId" element={<GeneratorPage />} />
-          <Route path="/novel" element={<NovelUploadPage />} />
-          <Route path="/scripts" element={<ScriptListPage />} />
-          <Route path="/scripts/:scriptId" element={<ScriptViewerPage />} />
+          <Route path="/" element={<ProtectedRoute><TrendsPage /></ProtectedRoute>} />
+          <Route path="/generate" element={<ProtectedRoute><GeneratorPage /></ProtectedRoute>} />
+          <Route path="/generate/:taskId" element={<ProtectedRoute><GeneratorPage /></ProtectedRoute>} />
+          <Route path="/novel" element={<ProtectedRoute><NovelUploadPage /></ProtectedRoute>} />
+          <Route path="/scripts" element={<ProtectedRoute><ScriptListPage /></ProtectedRoute>} />
+          <Route path="/scripts/:scriptId" element={<ProtectedRoute><ScriptViewerPage /></ProtectedRoute>} />
+          <Route path="/accounts" element={<ProtectedRoute><AccountManagementPage /></ProtectedRoute>} />
         </Routes>
       </main>
 

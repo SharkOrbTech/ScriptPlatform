@@ -22,6 +22,12 @@ beforeEach(() => {
     if (args[0]?.includes?.('not wrapped in act')) return
     originalError(...args)
   }
+  // Mock localStorage to return a token
+  localStorage.getItem.mockImplementation((key) => {
+    if (key === 'token') return 'test-token';
+    if (key === 'user') return JSON.stringify({ username: 'admin', is_admin: true });
+    return null;
+  });
   return () => { console.error = originalError }
 })
 

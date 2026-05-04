@@ -1,6 +1,7 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 import os
+import secrets
 
 
 class Settings(BaseSettings):
@@ -17,6 +18,9 @@ class Settings(BaseSettings):
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
     OPENAI_MODEL: str = "gpt-4o"
     ANTHROPIC_API_KEY: str = ""
+
+    # Auth
+    SECRET_KEY: str = secrets.token_urlsafe(32)
 
     # ChromaDB
     CHROMA_PERSIST_DIR: str = "./chroma_db"

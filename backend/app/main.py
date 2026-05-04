@@ -9,8 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import get_settings
-from app.core.database import init_db
-from app.api import trends, scripts
+from app.core.database import init_db, async_session
+from app.api import trends, scripts, auth
 
 settings = get_settings()
 
@@ -56,6 +56,10 @@ async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     await init_db()
 
+    # Create default admin account
+    async with async_session() as db:
+        await auth.create_default_admin(db)
+
     # Start scheduled trend refresh task
     refresh_task = asyncio.create_task(_scheduled_trend_refresh())
 
@@ -83,6 +87,7 @@ app.add_middleware(
 # API routes
 app.include_router(trends.router)
 app.include_router(scripts.router)
+app.include_router(auth.router)
 
 
 @app.get("/api/health")
