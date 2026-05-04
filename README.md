@@ -7,6 +7,7 @@ AI驱动的短剧剧本生成平台，聚合热点趋势，智能生成完整多
 - **热点聚合**: 实时抓取红果短剧、番茄小说当前热门内容
 - **AI剧本生成**: 基于热点和参考材料，自动生成完整多集短剧剧本
 - **分镜脚本**: 每集精确到每个分镜的景别、运镜、画面、台词、AI绘图提示词
+- **钩子标记系统**: 自动标注爆点、悬念、伏笔、反转等钩子类型，前端彩色高亮显示
 - **小说改编**: 上传完整小说，自动改编为短剧剧本
 - **知识库管理**: 角色、地点、伏笔等实体持久化，确保长剧本一致性
 - **版权风险检测**: 自动检查剧本与已有内容的相似度
@@ -86,7 +87,7 @@ script/
 │   │   │   ├── GeneratorPage.jsx   # 剧本生成页
 │   │   │   ├── NovelUploadPage.jsx # 小说改编页
 │   │   │   ├── ScriptListPage.jsx  # 剧本列表页
-│   │   │   ├── ScriptViewerPage.jsx# 剧本查看页
+│   │   │   ├── ScriptViewerPage.jsx# 剧本查看页（含钩子高亮）
 │   │   │   ├── LoginPage.jsx       # 登录页
 │   │   │   └── AccountManagementPage.jsx # 账号管理页
 │   │   ├── services/
@@ -116,17 +117,17 @@ script/
 生成流程分为4个阶段：
 
 ```
-Phase 1: 故事策划 (Story Planning)
-  └─ LLM生成完整故事大纲：角色、场景、道具、世界观、剧情线、伏笔、分集计划
+Phase 1: 故事策划
+  └─ LLM生成完整故事大纲：角色、场景、道具、世界观、剧情线、伏笔、分集计划、核心悬念
 
-Phase 2: 知识库初始化 (Knowledge Base Init)
-  └─ 将角色/场景/道具/规则/伏笔写入知识库
+Phase 2: 知识库初始化
+  └─ 将角色/场景/道具/规则/伏笔写入知识库文件系统
 
-Phase 3: 逐集生成 (Episode Generation)
-  └─ 每集：加载上下文 → LLM生成 → 保存 → 更新知识库
+Phase 3: 逐集生成
+  └─ 每集：加载知识库上下文 → LLM生成分镜脚本 → 保存 → 提取新实体更新知识库
 
-Phase 4: 输出整合 (Output Assembly)
-  └─ 组装完整剧本对象
+Phase 4: 输出整合
+  └─ 组装完整剧本对象（角色 + 场景 + 道具 + 每集分镜）
 ```
 
 #### 2. 知识库架构 (`knowledge_base.py`)
@@ -134,53 +135,74 @@ Phase 4: 输出整合 (Output Assembly)
 ```
 knowledge_base/{project_id}/
 ├── manifest.json           # 项目清单
-│   ├── entities            # 实体索引
+│   ├── entities            # 实体索引（名称→文件映射）
 │   ├── plot_threads        # 活跃剧情线
-│   ├── foreshadowing       # 未解伏笔
+│   ├── foreshadowing       # 未解伏笔（伏笔描述、埋设集数、揭晓集数）
 │   └── world_rules         # 世界观规则
 ├── entities/
-│   ├── character_*.json    # 角色实体
-│   ├── location_*.json     # 地点实体
-│   └── item_*.json         # 道具实体
+│   ├── character_*.json    # 角色实体（身份、性格、外貌、关系、成长弧线）
+│   ├── location_*.json     # 地点实体（场景描述、氛围、时间）
+│   └── item_*.json         # 道具实体（描述、首次出现集数）
 └── episodes/
-    └── episode_*.json      # 每集数据
+    └── episode_*.json      # 每集数据（标题、概要、分镜、钩子）
 ```
 
 每集生成时自动构建上下文：
-- 角色信息（身份、性格、外貌、关系）
-- 场景地点
-- 关键道具
-- 活跃剧情线
-- 未解伏笔
+- 角色信息（身份、性格、外貌、关系、成长弧线）
+- 场景地点（氛围、时间、天气）
+- 关键道具（象征意义、出现时机）
+- 活跃剧情线（状态追踪）
+- 未解伏笔（埋设→揭晓对应）
+- 世界观规则
 - 上一集概要 + 悬念
 
 #### 3. 提示词体系
 
-**STORY_PLANNER_PROMPT** - 故事策划提示词：
-- 核心原则（情绪 > 情节）
-- 结构框架（10%-80%-10%黄金比例）
-- 钩子技法体系（4种开头 + 7种集末）
-- 伏笔技法（5种）
-- 反转技法（4种）
-- 角色塑造（20种反差人设）
-- 冲突升级（5层递进）
-- 反派套路（7类阴险手段）
-- 危机感塑造（3种方法）
-- 台词要求（7种高频模式）
+**STORY_PLANNER_PROMPT** — 故事策划提示词（Phase 1 使用）：
+- 核心原则：情绪 > 情节
+- 结构框架：10%-80%-10%黄金比例
+- 钩子技法体系：4种开头 + 7种集末
+- 伏笔技法：信物/身份/闪回/对话/道具
+- 反转技法：身份/关系/局势/认知
+- 角色塑造：20种反差人设模板
+- 冲突升级：5层递进（言语→肢体→关系→经济→生命）
+- 反派套路：7类阴险手段
+- 危机感塑造：信息差/时间锁/生死局
+- 台词要求：7种高频模式（侮辱施压/反转/身份揭露/情感拉扯/霸总护短/女主反击/反派嘲讽）
+- 八种剧情写法 + 六大矛盾来源 + 30个爽感来源
 
-**EPISODE_GENERATOR_PROMPT** - 分集生成提示词：
-- 单集结构公式
+**EPISODE_GENERATOR_PROMPT** — 分集生成提示词（Phase 3 使用）：
+- 与策划提示词共享完整方法论体系（反差人设、反派套路、伏笔技法、反转技法等）
+- 单集结构公式：10%-80%-10%黄金比例
 - 压-爽节奏单元
-- 台词核心要求
-- 钩子类型标记
-- Seedance 2.0提示词工程
+- 台词核心要求 + 高频台词模式
+- 钩子类型标记（7种类型 + 详细分析）
+- 景别/运镜/转场规范
+- AI绘图提示词公式（Seedance 2.0标准）
 
-#### 4. 认证系统
+#### 4. 钩子标记系统
+
+每个分镜镜头可标注 `hook_type` 和 `hook_detail`，支持7种钩子类型：
+
+| hook_type | 含义 | 前端颜色 |
+|-----------|------|----------|
+| `hook` | 开头钩子/爆点 | 红色背景 |
+| `cliffhanger` | 结尾悬念 | 琥珀色背景 |
+| `foreshadowing` | 伏笔 | 紫色背景 |
+| `turning_point` | 情节转折 | 蓝色背景 |
+| `emotional_peak` | 情感高潮 | 粉色背景 |
+| `revelation` | 真相揭露 | 绿色背景 |
+| `conflict` | 核心冲突 | 橙色背景 |
+
+前端 `ScriptViewerPage` 的 `ShotCard` 组件会根据 `hook_type` 渲染彩色左边框和背景，并在有 `hook_detail` 时显示详细分析区块。
+
+#### 5. 认证系统
 
 ```
 登录流程：
-  前端 → POST /api/auth/login → 后端验证 → 返回JWT Token
-  前端存储Token → 后续请求携带Authorization头
+  前端 → POST /api/auth/login → 后端验证密码 → 返回JWT Token
+  前端存储Token到localStorage → 后续请求携带Authorization: Bearer头
+  401响应 → 自动跳转登录页
 
 权限模型：
   - 普通用户：访问所有功能
@@ -209,23 +231,24 @@ TaskDB: id, task_type, status, progress, result, error, created_at
 
 | 接口 | 方法 | 说明 |
 |------|------|------|
-| `/api/auth/login` | POST | 登录 |
-| `/api/auth/me` | GET | 获取当前用户 |
+| `/api/auth/login` | POST | 登录，返回JWT Token |
+| `/api/auth/me` | GET | 获取当前用户信息 |
 | `/api/auth/create-account` | POST | 创建账号（管理员） |
 | `/api/auth/accounts` | GET | 账号列表（管理员） |
 | `/api/auth/accounts/{username}` | DELETE | 删除账号（管理员） |
-| `/api/scripts/generate` | POST | 生成剧本 |
-| `/api/scripts/status/{taskId}` | GET | 查询生成状态 |
+| `/api/auth/change-password` | POST | 修改密码 |
+| `/api/scripts/generate` | POST | 生成剧本（返回taskId） |
+| `/api/scripts/status/{taskId}` | GET | 查询生成状态/结果 |
 | `/api/scripts/{scriptId}` | GET | 获取剧本详情 |
 | `/api/scripts/list` | GET | 剧本列表 |
 | `/api/scripts/qa` | POST | 剧本问答 |
 | `/api/scripts/rewrite` | POST | 剧本改写 |
 | `/api/scripts/upload-novel` | POST | 小说改编 |
-| `/api/trends` | GET | 获取热点 |
-| `/api/trends/analysis` | GET | 热点分析 |
+| `/api/trends` | GET | 获取热点列表 |
+| `/api/trends/analysis` | GET | 热点分析统计 |
 | `/api/trends/search` | GET | 搜索热点 |
 | `/api/trends/refresh-schedule` | GET/POST | 刷新频率设置 |
-| `/api/config` | GET | 获取配置 |
+| `/api/config` | GET | 获取配置（题材列表等） |
 | `/api/health` | GET | 健康检查 |
 
 ### 前端路由
@@ -234,36 +257,38 @@ TaskDB: id, task_type, status, progress, result, error, created_at
 |------|------|------|
 | `/login` | LoginPage | 登录页 |
 | `/` | TrendsPage | 热点趋势 |
-| `/generate` | GeneratorPage | 生成剧本 |
+| `/generate` | GeneratorPage | 生成剧本（步骤式表单） |
 | `/generate/:taskId` | GeneratorPage | 查看生成进度 |
 | `/novel` | NovelUploadPage | 小说改编 |
-| `/scripts` | ScriptListPage | 我的剧本 |
-| `/scripts/:scriptId` | ScriptViewerPage | 剧本详情 |
+| `/scripts` | ScriptListPage | 我的剧本列表 |
+| `/scripts/:scriptId` | ScriptViewerPage | 剧本详情（分镜+钩子高亮） |
 | `/accounts` | AccountManagementPage | 账号管理（管理员） |
 
 ### 技术栈
 
 **后端：**
-- FastAPI + Uvicorn
-- SQLAlchemy (async) + aiosqlite
-- OpenAI / Anthropic API
-- ChromaDB (向量数据库)
+- FastAPI + Uvicorn（异步Web框架）
+- SQLAlchemy (async) + aiosqlite（异步ORM + SQLite）
+- OpenAI / Anthropic API（双AI provider支持）
 - JWT认证 + bcrypt密码哈希
-- APScheduler (定时任务)
+- APScheduler（定时热点刷新）
 
 **前端：**
 - React 18 + Vite 5
-- Tailwind CSS 3
-- React Router v6
-- Vitest (测试)
+- Tailwind CSS 3（实用优先样式）
+- React Router v6（客户端路由）
+- Vitest + Testing Library（测试）
 
 ### 测试
 
 ```bash
-# 后端测试
-cd backend && python -m pytest tests/
+# 后端测试（29个API测试）
+cd backend && python -m pytest tests/test_api.py
 
-# 前端测试
+# 后端生成引擎测试（含AI调用，较慢）
+cd backend && python -m pytest tests/test_script_generator.py
+
+# 前端测试（54个组件测试）
 cd frontend && npx vitest run
 ```
 
@@ -274,6 +299,9 @@ cd frontend && npx vitest run
 本项目内置了基于100+部爆款短剧的完整写作方法论，详见：
 - `短剧写作要求.md` - 精炼的写作要求
 - `短剧写作技法方法论分析报告.md` - 完整方法论分析
-- `剧本分析_*.md` - 各题材深度分析
+- `剧本分析_*.md` - 各题材深度分析（重生复仇、甜宠逆袭、悬疑灵异、古装穿越）
+- `方法论分析_教程.md` - 教程文档分析
 
 核心公式：**短剧 = 情绪 > 情节**
+
+三条铁律：不要铺垫（矛盾前置）、不要想当然（写市场需要的）、用不到天赋（靠套路公式）。

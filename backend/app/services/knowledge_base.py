@@ -61,10 +61,16 @@ class KnowledgeBase:
             encoding="utf-8",
         )
 
+    @staticmethod
+    def _sanitize_name(name: str) -> str:
+        """Remove path-unsafe characters from entity names."""
+        return name.replace("/", "_").replace("\\", "_").replace(":", "_")
+
     def add_entity(self, entity: KnowledgeEntity):
         """Add or update an entity in the knowledge base."""
         manifest = self._load_manifest()
-        entity_id = f"{entity.entity_type}_{entity.name}"
+        safe_name = self._sanitize_name(entity.name)
+        entity_id = f"{entity.entity_type}_{safe_name}"
 
         # Save entity file
         entity_file = self.entities_dir / f"{entity_id}.json"
