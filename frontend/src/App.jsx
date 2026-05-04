@@ -130,7 +130,7 @@ function App() {
     <div className="min-h-screen bg-[#fafaf8] flex flex-col">
       {/* Header */}
       <header className="bg-white border-b border-ink-100 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+        <div className="mx-auto px-6 sm:px-10 lg:px-16">
           <div className="flex items-center justify-between h-14">
             {/* Logo */}
             <Link to="/" className="flex items-center gap-2.5 no-underline">
@@ -215,7 +215,7 @@ function App() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+      <main className="mx-auto px-6 sm:px-10 lg:px-16 py-6">
         <Routes>
           <Route path="/" element={<ProtectedRoute><TrendsPage /></ProtectedRoute>} />
           <Route path="/generate" element={<ProtectedRoute><GeneratorPage /></ProtectedRoute>} />
@@ -229,7 +229,7 @@ function App() {
 
       {/* Footer */}
       <footer className="border-t border-ink-100 bg-white mt-auto">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
+        <div className="mx-auto px-6 sm:px-10 lg:px-16 py-4">
           <div className="flex items-center justify-between text-xs text-ink-400">
             <span>短剧创作工具</span>
             <span>数据来源: 红果短剧 / 番茄小说</span>
