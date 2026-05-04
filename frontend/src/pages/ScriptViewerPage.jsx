@@ -398,13 +398,13 @@ function ShotCard({ shot, showAll }) {
 
   // Hook type config
   const hookConfig = {
-    hook: { bg: 'bg-red-50', border: 'border-l-red-500', badge: 'bg-red-100 text-red-700', textBg: 'bg-red-100/60', label: '爆点钩子', icon: '!', desc: '黄金3秒，抓住观众注意力' },
-    cliffhanger: { bg: 'bg-amber-50', border: 'border-l-amber-500', badge: 'bg-amber-100 text-amber-700', textBg: 'bg-amber-100/60', label: '结尾悬念', icon: '?', desc: '让人想看下一集' },
-    foreshadowing: { bg: 'bg-purple-50', border: 'border-l-purple-500', badge: 'bg-purple-100 text-purple-700', textBg: 'bg-purple-100/60', label: '伏笔', icon: '*', desc: '后续会揭晓的线索' },
-    turning_point: { bg: 'bg-blue-50', border: 'border-l-blue-500', badge: 'bg-blue-100 text-blue-700', textBg: 'bg-blue-100/60', label: '情节转折', icon: '~', desc: '剧情反转点' },
-    emotional_peak: { bg: 'bg-pink-50', border: 'border-l-pink-500', badge: 'bg-pink-100 text-pink-700', textBg: 'bg-pink-100/60', label: '情感高潮', icon: '^', desc: '虐恋/甜宠/逆袭爽点' },
-    revelation: { bg: 'bg-green-50', border: 'border-l-green-500', badge: 'bg-green-100 text-green-700', textBg: 'bg-green-100/60', label: '真相揭露', icon: '!', desc: '秘密曝光、身份揭示' },
-    conflict: { bg: 'bg-orange-50', border: 'border-l-orange-500', badge: 'bg-orange-100 text-orange-700', textBg: 'bg-orange-100/60', label: '核心冲突', icon: '#', desc: '矛盾爆发' },
+    hook: { bg: 'bg-red-50', border: 'border-l-red-500', badge: 'bg-red-100 text-red-700', label: '爆点钩子', icon: '!', desc: '黄金3秒，抓住观众注意力' },
+    cliffhanger: { bg: 'bg-amber-50', border: 'border-l-amber-500', badge: 'bg-amber-100 text-amber-700', label: '结尾悬念', icon: '?', desc: '让人想看下一集' },
+    foreshadowing: { bg: 'bg-purple-50', border: 'border-l-purple-500', badge: 'bg-purple-100 text-purple-700', label: '伏笔', icon: '*', desc: '后续会揭晓的线索' },
+    turning_point: { bg: 'bg-blue-50', border: 'border-l-blue-500', badge: 'bg-blue-100 text-blue-700', label: '情节转折', icon: '~', desc: '剧情反转点' },
+    emotional_peak: { bg: 'bg-pink-50', border: 'border-l-pink-500', badge: 'bg-pink-100 text-pink-700', label: '情感高潮', icon: '^', desc: '虐恋/甜宠/逆袭爽点' },
+    revelation: { bg: 'bg-green-50', border: 'border-l-green-500', badge: 'bg-green-100 text-green-700', label: '真相揭露', icon: '!', desc: '秘密曝光、身份揭示' },
+    conflict: { bg: 'bg-orange-50', border: 'border-l-orange-500', badge: 'bg-orange-100 text-orange-700', label: '核心冲突', icon: '#', desc: '矛盾爆发' },
   }
 
   const hookType = shot.hook_type
@@ -440,7 +440,7 @@ function ShotCard({ shot, showAll }) {
 
         <div>
           <div className="text-xs font-medium text-ink-500 mb-0.5">画面内容</div>
-          <p className={`text-sm text-ink-800 ${hookInfo ? `inline ${hookInfo.textBg} px-1 rounded` : ''}`}>{shot.frame_content}</p>
+          <p className="text-sm text-ink-800">{shot.frame_content}</p>
         </div>
         {shot.narration && (
           <div>
@@ -451,7 +451,7 @@ function ShotCard({ shot, showAll }) {
         {shot.dialogue && (
           <div>
             <div className="text-xs font-medium text-ink-500 mb-0.5">台词</div>
-            <p className={`text-sm text-ink-800 italic ${hookInfo ? `inline ${hookInfo.textBg} px-1 rounded` : ''}`}>"{shot.dialogue}"</p>
+            <p className="text-sm text-ink-800 italic">"{shot.dialogue}"</p>
           </div>
         )}
         {showAll && aiPrompt && (
