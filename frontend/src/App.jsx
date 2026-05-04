@@ -76,8 +76,10 @@ function App() {
       try {
         setUser(JSON.parse(stored));
       } catch {}
+    } else {
+      setUser(null);
     }
-  }, []);
+  }, [location.pathname]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
