@@ -597,7 +597,9 @@ export default function GeneratorPage() {
           <h2 className="text-lg font-semibold text-ink-900 mb-2">正在生成剧本</h2>
           <p className="text-sm text-ink-500 mb-6">
             {status?.status === 'generating'
-              ? `正在创作第 ${status.current_episode || '?'} / ${status.total_episodes || '?'} 集...`
+              ? status.current_episode > 0
+                ? `正在创作第 ${status.current_episode} / ${status.total_episodes} 集...`
+                : '正在策划故事...'
               : '正在初始化AI引擎...'}
           </p>
           <div className="w-full bg-ink-100 rounded-full h-2 mb-2">
