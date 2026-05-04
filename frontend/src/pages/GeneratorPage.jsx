@@ -269,7 +269,7 @@ export default function GeneratorPage() {
   const styles = config?.styles || ['古风', '现代都市', '赛博朋克', '日漫', '韩漫', '写实']
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Notification Toast */}
       {notification && (
         <div className="fixed bottom-6 right-6 z-50 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-xl shadow-lg animate-fade-in flex items-center gap-2">

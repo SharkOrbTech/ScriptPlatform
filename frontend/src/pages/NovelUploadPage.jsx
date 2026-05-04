@@ -45,7 +45,7 @@ export default function NovelUploadPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-ink-900">小说改编</h1>
         <p className="text-sm text-ink-500 mt-1">

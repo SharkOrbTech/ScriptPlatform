@@ -25,7 +25,16 @@ async function request(url, options = {}) {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || '请求失败');
+    const detail = err.detail;
+    let message = '请求失败';
+    if (typeof detail === 'string') {
+      message = detail;
+    } else if (Array.isArray(detail)) {
+      message = detail.map(d => d.msg || JSON.stringify(d)).join('; ');
+    } else if (detail && typeof detail === 'object') {
+      message = detail.msg || JSON.stringify(detail);
+    }
+    throw new Error(message);
   }
   return res.json();
 }
