@@ -13,6 +13,18 @@ AI驱动的短剧剧本生成平台，聚合热点趋势，智能生成完整多
 - **版权风险检测**: 自动检查剧本与已有内容的相似度
 - **账号系统**: 管理员可创建和管理账号，保障部署安全
 
+## 安装依赖
+
+```bash
+# 后端依赖
+cd backend
+pip install -r requirements.txt
+
+# 前端依赖
+cd frontend
+npm install
+```
+
 ## 快速启动
 
 ```bash
@@ -22,7 +34,6 @@ AI驱动的短剧剧本生成平台，聚合热点趋势，智能生成完整多
 # 或手动启动
 # 后端
 cd backend
-source venv/bin/activate
 python run.py
 
 # 前端
@@ -31,8 +42,6 @@ npm run dev
 ```
 
 访问 http://localhost:3000
-
-默认管理员账号：`admin` / `admin123`
 
 ## 配置
 
@@ -207,7 +216,6 @@ knowledge_base/{project_id}/
 权限模型：
   - 普通用户：访问所有功能
   - 管理员：额外可管理账号（创建/删除）
-  - 默认账号：admin / admin123
 ```
 
 ### 数据库模型

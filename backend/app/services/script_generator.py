@@ -1195,7 +1195,7 @@ class ScriptGenerator:
 
         return {}
 
-    async def adapt_novel(self, novel_content: str, episode_count: int = 8, genre: ScriptGenre = ScriptGenre.REBIRTH, style: str = "古风") -> dict:
+    async def adapt_novel(self, novel_content: str, episode_count: int = 8, genre: str = "重生", style: str = "古风") -> dict:
         """Convert a novel into a drama script with multi-phase processing.
 
         Multi-phase pipeline:

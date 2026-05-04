@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from app.services.script_generator import script_generator
 from app.services.copyright_checker import copyright_checker
 from app.models.schemas import (
-    ScriptRequest, ScriptResponse, ScriptGenre, Script,
+    ScriptRequest, ScriptResponse, Script,
 )
 
 router = APIRouter(prefix="/api/scripts", tags=["scripts"])
@@ -116,15 +116,10 @@ async def upload_novel(
     if len(text) > 500000:
         text = text[:500000]
 
-    try:
-        genre_enum = ScriptGenre(genre)
-    except ValueError:
-        genre_enum = ScriptGenre(genre) if genre in [e.value for e in ScriptGenre] else ScriptGenre("重生")
-
     result = await script_generator.adapt_novel(
         novel_content=text,
         episode_count=episode_count,
-        genre=genre_enum,
+        genre=genre,
         style=style,
     )
 
@@ -149,7 +144,7 @@ async def check_copyright(script_id: str):
     script = Script(
         id=script_id,
         title=stored.get("title", ""),
-        genre=ScriptGenre(stored.get("genre", "重生")),
+        genre=stored.get("genre", "重生"),
         logline=stored.get("logline", ""),
         synopsis=stored.get("synopsis", ""),
     )

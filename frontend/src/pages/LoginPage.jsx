@@ -81,9 +81,6 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div className="mt-6 text-center text-xs text-ink-400">
-          默认管理员：admin / admin123
-        </div>
       </div>
     </div>
   );
