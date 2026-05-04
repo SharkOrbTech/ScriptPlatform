@@ -18,6 +18,7 @@ import json
 import hashlib
 import logging
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -245,17 +246,67 @@ class KnowledgeBase:
 
     def extract_entities_from_episode(self, episode: Episode):
         """Extract and update knowledge entities from a completed episode."""
-        # Extract character info from shots
+        existing_chars = {e.name: e for e in self.get_all_entities("character")}
+        existing_locations = {e.name: e for e in self.get_all_entities("location")}
+        existing_items = {e.name: e for e in self.get_all_entities("item")}
+
         for shot in episode.shots:
-            # Parse character mentions from dialogue and frame content
-            content = f"{shot.frame_content} {shot.dialogue}"
-            # This is a simplified extraction - in production, use NER
-            # For now, update existing characters if mentioned
-            for entity in self.get_all_entities("character"):
-                if entity.name in content:
+            content = f"{shot.frame_content} {shot.dialogue} {shot.narration}"
+
+            # 1. Update existing character mentions and emotional state
+            for name, entity in existing_chars.items():
+                if name in content:
                     entity.attributes.setdefault("last_mentioned", f"第{episode.episode_number}集")
                     entity.attributes["appearances"] = entity.attributes.get("appearances", 0) + 1
+                    if shot.emotion and name in shot.dialogue:
+                        entity.attributes["last_emotion"] = shot.emotion
                     self.add_entity(entity)
+
+            # 2. Extract locations from frame_content
+            location_keywords = ["殿", "宫", "府", "院", "楼", "阁", "城", "街", "巷", "庙", "寺",
+                                 "山", "河", "湖", "林", "园", "房", "室", "厅", "堂", "门"]
+            for kw in location_keywords:
+                # Find patterns like "XX殿", "XX宫" etc.
+                for match in re.finditer(rf'[\u4e00-\u9fff]{{1,4}}{kw}', content):
+                    loc_name = match.group()
+                    if loc_name not in existing_locations and len(loc_name) >= 2:
+                        existing_locations[loc_name] = KnowledgeEntity(
+                            name=loc_name,
+                            entity_type="location",
+                            description=f"第{episode.episode_number}集出现的场景",
+                            first_appearance=f"第{episode.episode_number}集",
+                        )
+                        self.add_entity(existing_locations[loc_name])
+
+            # 3. Extract items/props from frame_content
+            item_keywords = ["刀", "剑", "枪", "药", "丹", "符", "印", "玉", "珠", "书", "信",
+                             "令牌", "圣旨", "毒", "酒", "盔", "甲", "戒指", "项链", "簪"]
+            for kw in item_keywords:
+                for match in re.finditer(rf'[\u4e00-\u9fff]{{1,4}}{kw}', content):
+                    item_name = match.group()
+                    if item_name not in existing_items and len(item_name) >= 2:
+                        existing_items[item_name] = KnowledgeEntity(
+                            name=item_name,
+                            entity_type="item",
+                            description=f"第{episode.episode_number}集出现的道具",
+                            first_appearance=f"第{episode.episode_number}集",
+                        )
+                        self.add_entity(existing_items[item_name])
+
+            # 4. Extract foreshadowing from hook-tagged shots
+            if shot.hook_type == "foreshadowing" and shot.hook_detail:
+                self.add_foreshadowing(
+                    setup=shot.hook_detail,
+                    episode=episode.episode_number,
+                )
+
+        # 5. Track plot threads from key_conflict and emotional_arc
+        if episode.key_conflict:
+            self.add_plot_thread(
+                name=f"第{episode.episode_number}集冲突",
+                description=episode.key_conflict,
+                status="进行中" if episode.cliffhanger else "已解决",
+            )
 
     def get_full_script_context(self) -> str:
         """Get the full context of the entire script for final review."""

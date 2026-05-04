@@ -305,6 +305,12 @@ EPISODE_GENERATOR_PROMPT = """你是一个顶级短剧分镜脚本专家，精�
 - 经过（80%）：反派持续施压，主角隐忍/被误解，观众情绪被反复拉扯。这是情绪的蓄水池。
 - 结果/钩子（10%）：留悬念设卡点，让观众"非看下一集不可"
 
+【时长与分镜数量】（严格遵守）
+- 每集总时长必须达到用户指定的目标时长，不得少于目标时长的80%
+- 每个分镜时长2-8秒，通过调整分镜数量来达到目标总时长
+- 一般90秒的剧本需要18-25个分镜，60秒需要12-18个分镜
+- total_duration字段必须是所有分镜duration之和
+
 【"压-爽"节奏单元】
 每一集内部必须包含至少一个"压-爽"小循环：
 - 压（情绪低点）：反派施压，主角受辱——压抑时间要长，层层递进
@@ -1036,7 +1042,8 @@ class ScriptGenerator:
 4. 结尾是悬念
 5. 与前几集保持剧情连贯
 6. ai_prompt使用自然语言段落描述画面，不要使用逗号拼接关键词
-7. 如果知识库上下文中包含"本集必须包含的原著钩子"，请在对应分镜的hook_type和hook_detail中标记这些钩子"""
+7. 如果知识库上下文中包含"本集必须包含的原著钩子"，请在对应分镜的hook_type和hook_detail中标记这些钩子
+8. total_duration必须等于所有分镜duration之和，且必须达到{request.episode_duration}秒的目标时长"""
 
         messages = [
             {"role": "system", "content": EPISODE_GENERATOR_PROMPT},
@@ -1068,7 +1075,7 @@ class ScriptGenerator:
                 lighting=s.get("lighting") or "",
                 emotion=s.get("emotion") or "",
                 notes=s.get("notes") or "",
-                hook_type=s.get("hook_type"),
+                hook_type=s.get("hook_type") if s.get("hook_type") and s.get("hook_type") != "null" else None,
                 hook_detail=s.get("hook_detail") or "",
             ))
 
