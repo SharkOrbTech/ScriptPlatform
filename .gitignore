@@ -1,0 +1,63 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Node
+node_modules/
+.npm
+dist/
+.vite/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database
+*.db
+*.sqlite3
+
+# Cache
+cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ChromaDB
+chroma_db/
+knowledge_base/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Build artifacts
+frontend/dist/
+
+# Claude
+.claude/
+
+# Reference materials (large binary files)
+reference/
+reference_new/

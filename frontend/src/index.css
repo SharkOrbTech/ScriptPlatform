@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-brand: #b07a3f;
+  --color-brand-light: #cda97a;
+  --color-brand-dark: #7d4d2c;
+  --color-bg: #fafaf8;
+  --color-surface: #ffffff;
+  --color-border: #e5e5e3;
+  --color-text: #1a1a1a;
+  --color-text-secondary: #6d6d6d;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d1d1d1;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #b0b0b0;
+}
+
+/* Custom components */
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center px-5 py-2.5 text-sm font-medium rounded transition-all duration-150;
+  }
+  .btn-primary {
+    @apply bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800;
+  }
+  .btn-secondary {
+    @apply bg-white text-ink-800 border border-ink-200 hover:bg-ink-50 active:bg-ink-100;
+  }
+  .btn-ghost {
+    @apply text-ink-600 hover:bg-ink-50 active:bg-ink-100;
+  }
+  .card {
+    @apply bg-white border border-ink-100 rounded-xl;
+  }
+  .input {
+    @apply w-full px-3 py-2 text-sm border border-ink-200 rounded-lg bg-white focus:outline-none focus:border-brand-400 focus:ring-1 focus:ring-brand-200 transition-colors;
+  }
+  .select {
+    @apply w-full px-3 py-2 text-sm border border-ink-200 rounded-lg bg-white focus:outline-none focus:border-brand-400 appearance-none cursor-pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236d6d6d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+  }
+  .textarea {
+    @apply w-full px-3 py-2 text-sm border border-ink-200 rounded-lg bg-white focus:outline-none focus:border-brand-400 focus:ring-1 focus:ring-brand-200 resize-y transition-colors;
+  }
+  .label {
+    @apply block text-sm font-medium text-ink-700 mb-1;
+  }
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-lg;
+  }
+  .badge-brand {
+    @apply bg-brand-50 text-brand-700 border border-brand-100;
+  }
+  .badge-ink {
+    @apply bg-ink-50 text-ink-600 border border-ink-100;
+  }
+}
+
+/* Loading spinner */
+.spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #e5e5e3;
+  border-top-color: var(--color-brand);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Fade in animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Print styles for script export */
+@media print {
+  body { background: white; }
+  .no-print { display: none !important; }
+  .card { border: 1px solid #ccc; break-inside: avoid; }
+}
