@@ -890,6 +890,7 @@ class ScriptGenerator:
 
     async def _plan_story(self, request: ScriptRequest) -> dict:
         """Phase 1: Generate overall story plan."""
+        logger.info(f"Phase 1: Starting story planning for topic: {request.topic}")
         trend_context = ""
         if request.trend_context:
             trend_context = f"""
@@ -906,7 +907,7 @@ class ScriptGenerator:
         prompt = f"""请为以下短剧主题生成完整的策划方案：
 
 主题: {request.topic}
-题材: {request.genre.value}
+题材: {request.genre}
 集数: {request.episode_count}集
 每集时长: {request.episode_duration}秒
 目标受众: {request.target_audience}
@@ -929,9 +930,12 @@ class ScriptGenerator:
         ]
 
         response = await ai_client.chat(messages, temperature=0.9, max_tokens=8192)
+        logger.info(f"Phase 1: LLM response received, length={len(response)}")
         result = self._extract_json(response)
         if not result:
             logger.error(f"Story planning returned empty JSON. Response was: {response[:500]}")
+        else:
+            logger.info(f"Phase 1: Story plan extracted, title={result.get('title', '?')}")
         return result
 
     async def _generate_episode(self, ep_num: int, request: ScriptRequest, story_plan: dict, ep_plan: dict, context: str) -> Episode:
@@ -970,7 +974,7 @@ class ScriptGenerator:
         prompt = f"""请为第{ep_num}集生成完整的分镜脚本。
 
 剧名: {story_plan.get('title', '')}
-题材: {request.genre.value}
+题材: {request.genre}
 总集数: {request.episode_count}
 每集时长: {request.episode_duration}秒
 风格: {request.style}
@@ -1210,7 +1214,7 @@ class ScriptGenerator:
         logger.info(f"Novel split into {len(chapters)} chapters")
 
         overview_text = "\n\n".join(chapters[:5])[:8000]
-        overview = await self._extract_novel_overview(overview_text, genre.value, style)
+        overview = await self._extract_novel_overview(overview_text, genre, style)
         logger.info(f"Novel overview extracted: {overview.get('title', 'unknown')}")
 
         # Build condensed novel for AI
@@ -1241,7 +1245,7 @@ class ScriptGenerator:
 
         novel_context = f"""【小说基本信息】
 标题: {overview.get('title', '未知')}
-题材: {genre.value}
+题材: {genre}
 风格: {style}
 主要角色: {', '.join(overview.get('main_characters', []))}
 核心冲突: {overview.get('core_conflict', '')}
@@ -1255,7 +1259,7 @@ class ScriptGenerator:
 
         # Phase 2: Generate story plan (characters, scenes, props, world rules)
         logger.info("Phase 2: Generating story plan from novel...")
-        story_plan = await self._adapt_story_plan(novel_context, genre.value, style, episode_count)
+        story_plan = await self._adapt_story_plan(novel_context, genre, style, episode_count)
         if not story_plan:
             logger.error("Story plan generation failed, falling back to single-shot adaptation")
             return await self._adapt_novel_single_shot(novel_context)
@@ -1306,7 +1310,7 @@ class ScriptGenerator:
         # Phase 5: Assemble final result
         result = {
             "title": enhanced_plan.get("title", overview.get("title", "未命名剧本")),
-            "genre": genre.value,
+            "genre": genre,
             "logline": enhanced_plan.get("logline", ""),
             "synopsis": enhanced_plan.get("synopsis", overview.get("synopsis", "")),
             "theme": enhanced_plan.get("theme", ""),
