@@ -39,9 +39,10 @@ export function BackgroundTaskProvider({ children }) {
 }
 
 function BackgroundSpinner({ tasks }) {
+  const navigate = useNavigate()
   return (
-    <div className="z-50 animate-fade-in" style={{ position: 'fixed', bottom: 16, right: 16 }}>
-      <div className="bg-white border border-ink-200 rounded-xl shadow-lg px-4 py-3 flex items-center gap-3 min-w-[200px]">
+    <div className="z-50 animate-fade-in cursor-pointer" style={{ position: 'fixed', bottom: 80, right: 16 }} onClick={() => navigate('/generate')}>
+      <div className="bg-white border border-ink-200 rounded-xl shadow-lg px-4 py-3 flex items-center gap-3 min-w-[200px] hover:border-brand-300 hover:shadow-md transition-all">
         <span className="spinner" style={{ width: 20, height: 20, borderWidth: 2 }} />
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-ink-800 truncate">
@@ -50,6 +51,7 @@ function BackgroundSpinner({ tasks }) {
           {tasks.length > 1 && (
             <div className="text-xs text-ink-400">还有 {tasks.length - 1} 个后台任务</div>
           )}
+          <div className="text-xs text-brand-500 mt-0.5">点击回到生成页面</div>
         </div>
       </div>
     </div>

@@ -629,7 +629,7 @@ export default function GeneratorPage() {
           </div>
 
           {/* Phase Stepper */}
-          <div className="flex items-center justify-between mb-6 max-w-lg mx-auto">
+          <div className="flex items-center justify-between mb-6 w-full max-w-lg mx-auto">
             {[
               { key: 'plan', label: '策划' },
               { key: 'character', label: '角色' },
