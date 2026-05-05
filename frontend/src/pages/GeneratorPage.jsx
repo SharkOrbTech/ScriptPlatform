@@ -612,7 +612,7 @@ export default function GeneratorPage() {
           </div>
 
           {/* Phase Stepper */}
-          <div className="flex items-center justify-between mb-6 px-4">
+          <div className="flex items-center justify-between mb-6 max-w-lg mx-auto">
             {[
               { key: 'plan', label: '策划' },
               { key: 'character', label: '角色' },
@@ -642,13 +642,13 @@ export default function GeneratorPage() {
           </div>
 
           {/* Progress Bar */}
-          <div className="w-full bg-ink-100 rounded-full h-2 mb-2">
+          <div className="w-full max-w-lg mx-auto bg-ink-100 rounded-full h-2 mb-2">
             <div
               className="bg-brand-500 h-2 rounded-full transition-all duration-500"
               style={{ width: `${status?.progress || 0}%` }}
             />
           </div>
-          <div className="flex justify-between text-xs text-ink-400">
+          <div className="flex justify-between text-xs text-ink-400 max-w-lg mx-auto">
             <span>{Math.round(status?.progress || 0)}% 完成</span>
             <span>已用时 {Math.floor(elapsedSeconds / 60)}:{String(elapsedSeconds % 60).padStart(2, '0')}</span>
           </div>
