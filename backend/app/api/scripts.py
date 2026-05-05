@@ -1,13 +1,17 @@
 """API routes for script generation and management."""
 import json
+import logging
 import re
 import uuid
 from datetime import datetime
+from pathlib import Path
 
 from fastapi import APIRouter, UploadFile, File, Form, Query, HTTPException
 from pydantic import BaseModel
 
 from app.services.script_generator import script_generator
+
+logger = logging.getLogger(__name__)
 from app.services.copyright_checker import copyright_checker
 from app.models.schemas import (
     ScriptRequest, ScriptResponse, Script,
@@ -32,8 +36,35 @@ def _sanitize_json_str(s: str) -> str:
     return s.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t').replace('\b', '\\b').replace('\f', '\\f')
 
 
+SCRIPTS_CACHE_DIR = Path(__file__).parent.parent.parent / "cache"
+SCRIPTS_CACHE_FILE = SCRIPTS_CACHE_DIR / "scripts_cache.json"
+
+
 # In-memory script storage
 _script_store: dict[str, dict] = {}
+
+
+def _load_disk_cache():
+    try:
+        if SCRIPTS_CACHE_FILE.exists():
+            data = json.loads(SCRIPTS_CACHE_FILE.read_text(encoding='utf-8'))
+            items = data.get("scripts", {})
+            _script_store.update(items)
+            logger.info(f"Loaded {len(items)} scripts from disk cache")
+    except Exception as e:
+        logger.warning(f"Failed to load scripts disk cache: {e}")
+
+
+def _save_disk_cache():
+    try:
+        SCRIPTS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        data = {"scripts": _script_store, "saved_at": datetime.now().isoformat()}
+        SCRIPTS_CACHE_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+    except Exception as e:
+        logger.warning(f"Failed to save scripts disk cache: {e}")
+
+
+_load_disk_cache()
 
 # In-memory Q&A sessions
 _qa_sessions: dict[str, list[dict]] = {}
@@ -78,6 +109,7 @@ async def get_generation_status(task_id: str):
         else:
             result["script"] = status.script.model_dump()
         _script_store[task_id] = result["script"]
+        _save_disk_cache()
     return _sanitize_json(result)
 
 
@@ -182,6 +214,7 @@ async def upload_novel(
         result["id"] = script_id
         result["created_at"] = datetime.now().isoformat()
         _script_store[script_id] = result
+        _save_disk_cache()
 
     return {"task_id": script_id, "result": result}
 
@@ -204,6 +237,7 @@ async def check_copyright(script_id: str):
     result = await copyright_checker.check_script(script)
     stored["copyright_risk"] = result.model_dump()
     _script_store[script_id] = stored
+    _save_disk_cache()
 
     return result.model_dump()
 
@@ -444,6 +478,7 @@ async def rewrite_script_part(request: QARewriteRequest):
                     break
 
         _script_store[request.script_id] = stored
+        _save_disk_cache()
 
         return _sanitize_json({"success": True, "result": result})
     except HTTPException:
