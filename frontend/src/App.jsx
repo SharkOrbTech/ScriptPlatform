@@ -104,21 +104,6 @@ function App() {
     return location.pathname.startsWith(path)
   }
 
-  // Background trend fetching on mount
-  const { addTask, removeTask } = useBackgroundTask()
-  useEffect(() => {
-    if (!localStorage.getItem('token')) return;
-
-    const taskId = 'trends-fetch'
-    addTask(taskId, '正在获取热点数据...')
-    api.getTrendsFetchStatus().then(data => {
-      if (data.fetching) return // already fetching
-      // Trigger a refresh if no cache
-      return api.getTrends().catch(() => {})
-    }).catch(() => {}).finally(() => {
-      setTimeout(() => removeTask(taskId), 1000)
-    })
-  }, [])
 
   if (location.pathname === '/login') {
     return (

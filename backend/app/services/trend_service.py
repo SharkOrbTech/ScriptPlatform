@@ -44,8 +44,7 @@ class TrendService:
                 cached_at = datetime.fromisoformat(data.get("cached_at", "2000-01-01"))
                 if datetime.now() - cached_at < timedelta(hours=24):
                     items = [TrendItem(**item) for item in data.get("items", [])]
-                    cache_key = f"all_trends_{cached_at.strftime('%Y%m%d_%H')}"
-                    self._cache[cache_key] = (items, cached_at)
+                    self._cache["all_trends_disk"] = (items, cached_at)
                     logger.info(f"Loaded {len(items)} trends from disk cache")
         except Exception as e:
             logger.warning(f"Failed to load disk cache: {e}")
@@ -76,11 +75,11 @@ class TrendService:
             if datetime.now() - cached_at < self._cache_ttl:
                 return items
 
-        # Also check any recent cache key
-        if not force_refresh:
-            for key, (items, cached_at) in self._cache.items():
-                if key.startswith("all_trends_") and datetime.now() - cached_at < self._cache_ttl:
-                    return items
+        # Check disk cache (24h validity)
+        if not force_refresh and "all_trends_disk" in self._cache:
+            items, cached_at = self._cache["all_trends_disk"]
+            if datetime.now() - cached_at < timedelta(hours=24):
+                return items
 
         self._is_fetching = True
         try:
