@@ -62,9 +62,16 @@ export default function GeneratorPage() {
             genres: data.genres,
             styles: data.styles?.length > 0 ? data.styles : prev?.styles,
           }))
+          const updates = {}
           // Auto-select first genre if current genre not in new list
           if (!data.genres.find(g => g.value === form.genre)) {
-            setForm(prev => ({ ...prev, genre: data.genres[0].value }))
+            updates.genre = data.genres[0].value
+          }
+          // Auto-select audience and style from backend suggestions
+          if (data.suggested_audience) updates.target_audience = data.suggested_audience
+          if (data.suggested_style) updates.style = data.suggested_style
+          if (Object.keys(updates).length > 0) {
+            setForm(prev => ({ ...prev, ...updates }))
           }
         }
       }).catch(() => {})
