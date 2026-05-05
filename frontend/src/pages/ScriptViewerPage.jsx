@@ -10,7 +10,7 @@ export default function ScriptViewerPage() {
   const [loading, setLoading] = useState(!script)
   const [activeEpisode, setActiveEpisode] = useState(1)
   const [activeTab, setActiveTab] = useState('episodes') // episodes, characters, scenes, props
-  const [showAllShots, setShowAllShots] = useState(false)
+
   const [copyrightResult, setCopyrightResult] = useState(script?.copyright_risk || null)
   const [checkingCopyright, setCheckingCopyright] = useState(false)
   const [expandedChar, setExpandedChar] = useState(null)
@@ -216,8 +216,7 @@ export default function ScriptViewerPage() {
           currentEp={currentEp}
           activeEpisode={activeEpisode}
           setActiveEpisode={setActiveEpisode}
-          showAllShots={showAllShots}
-          setShowAllShots={setShowAllShots}
+                    setShowAllShots={setShowAllShots}
           onRewrite={(epNum) => setRewriteTarget({ target: 'episode', targetName: String(epNum) })}
         />
       )}
@@ -310,7 +309,7 @@ function CopyrightCard({ result }) {
   )
 }
 
-function EpisodesTab({ script, currentEp, activeEpisode, setActiveEpisode, showAllShots, setShowAllShots, onRewrite }) {
+function EpisodesTab({ script, currentEp, activeEpisode, setActiveEpisode, onRewrite }) {
   return (
     <div className="card">
       <div className="border-b border-ink-100 px-4 overflow-x-auto">
@@ -366,15 +365,10 @@ function EpisodesTab({ script, currentEp, activeEpisode, setActiveEpisode, showA
 
           {/* Shots */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-ink-700">分镜脚本 ({currentEp.shots?.length || 0}个镜头)</h3>
-              <button className="text-xs text-brand-600 hover:text-brand-700" onClick={() => setShowAllShots(!showAllShots)}>
-                {showAllShots ? '收起' : '展开全部'}
-              </button>
-            </div>
+            <h3 className="text-sm font-semibold text-ink-700 mb-3">分镜脚本 ({currentEp.shots?.length || 0}个镜头)</h3>
 
             {currentEp.shots?.map((shot, i) => (
-              <ShotCard key={i} shot={shot} showAll={showAllShots || i < 2} />
+              <ShotCard key={i} shot={shot} />
             ))}
           </div>
 
@@ -387,7 +381,7 @@ function EpisodesTab({ script, currentEp, activeEpisode, setActiveEpisode, showA
   )
 }
 
-function ShotCard({ shot, showAll }) {
+function ShotCard({ shot }) {
   const [copied, setCopied] = useState(null)
 
   function copyText(text, label) {
@@ -465,7 +459,7 @@ function ShotCard({ shot, showAll }) {
             <p className="text-xs text-ink-600 bg-ink-50 p-2 rounded-lg font-mono">{videoPrompt}</p>
           </div>
         )}
-        {showAll && shot.notes && (
+        {shot.notes && (
           <div className="text-xs">
             <span className="text-ink-400">备注:</span> {shot.notes}
           </div>
