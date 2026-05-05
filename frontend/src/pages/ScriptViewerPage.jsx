@@ -216,7 +216,6 @@ export default function ScriptViewerPage() {
           currentEp={currentEp}
           activeEpisode={activeEpisode}
           setActiveEpisode={setActiveEpisode}
-                    setShowAllShots={setShowAllShots}
           onRewrite={(epNum) => setRewriteTarget({ target: 'episode', targetName: String(epNum) })}
         />
       )}

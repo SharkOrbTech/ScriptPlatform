@@ -30,7 +30,7 @@ const { mockGetScript, mockCheckCopyright, mockRewriteScript } = vi.hoisted(() =
             frame_content: '女主面部特写',
             dialogue: '我一定会回来的',
             duration: 3.0,
-            ai_prompt: 'close up of a beautiful woman',
+            video_prompt: '特写镜头，女主面部特写，眼神坚定，低声说"我一定会回来的"，语气充满决心和力量',
             hook_type: 'hook',
             hook_detail: '开头爆点',
           },
@@ -135,7 +135,7 @@ describe('ScriptViewerPage', () => {
   it('shows shot content', async () => {
     renderViewer()
     await waitFor(() => {
-      expect(screen.getByText(/女主面部特写/)).toBeInTheDocument()
+      expect(screen.getAllByText(/女主面部特写/).length).toBeGreaterThanOrEqual(1)
     })
   })
 
