@@ -288,7 +288,12 @@ export default function GeneratorPage() {
   }
 
   const genres = config?.genres || []
-  const styles = config?.styles || ['古风', '现代都市', '赛博朋克', '日漫', '韩漫', '写实']
+  const defaultStyles = ['古风', '现代都市', '赛博朋克', '日漫', '韩漫', '写实']
+  const configStyles = config?.styles || defaultStyles
+  // Dynamically add the current form.style if it's not in the list
+  const styles = form.style && !configStyles.includes(form.style)
+    ? [...configStyles, form.style]
+    : configStyles
 
   return (
     <div className="space-y-6">
