@@ -306,6 +306,33 @@ function buildCharactersMarkdown(script) {
   return lines.join('\n')
 }
 
+function buildEpisodeMarkdown(script, ep) {
+  const lines = []
+  lines.push(`# 第${ep.episode_number}集: ${ep.title || ''}`)
+  lines.push('')
+  if (ep.summary) { lines.push(`**概要**: ${ep.summary}`); lines.push('') }
+  if (ep.hook) { lines.push(`**开头钩子**: ${ep.hook}`); lines.push('') }
+  if (ep.cliffhanger) { lines.push(`**结尾悬念**: ${ep.cliffhanger}`); lines.push('') }
+  if (ep.key_conflict) { lines.push(`**核心冲突**: ${ep.key_conflict}`); lines.push('') }
+  if (ep.emotional_arc) { lines.push(`**情感弧线**: ${ep.emotional_arc}`); lines.push('') }
+
+  if (ep.shots?.length > 0) {
+    lines.push('## 分镜脚本')
+    lines.push('')
+    for (const shot of ep.shots) {
+      lines.push(`### 镜头 ${shot.shot_number}`)
+      lines.push(`- **景别**: ${shot.shot_type || '-'} | **运镜**: ${shot.camera_movement || '-'}`)
+      if (shot.frame_content) lines.push(`- **画面**: ${shot.frame_content}`)
+      if (shot.dialogue) lines.push(`- **台词**: ${shot.dialogue}`)
+      if (shot.narration) lines.push(`- **内心独白**: ${shot.narration}`)
+      if (shot.video_prompt) lines.push(`- **视频生成提示词**: ${shot.video_prompt}`)
+      if (shot.hook_type) lines.push(`- **钩子**: ${shot.hook_type} - ${shot.hook_detail || ''}`)
+      lines.push('')
+    }
+  }
+  return lines.join('\n')
+}
+
 function buildEpisodesMarkdown(script) {
   const lines = []
   lines.push('# 分集剧本')
@@ -425,35 +452,34 @@ function buildSimpleDocx(title, markdownContent) {
 // ZIP Export
 // ============================================================
 
-export async function exportToZip(script, format = 'md') {
+export async function exportToZip(script) {
   const zip = new JSZip()
   const title = script.title || '剧本'
-  const folder = zip.folder(title)
+  const root = zip.folder(title)
 
-  if (format === 'md' || format === 'both') {
-    folder.file('01_剧本概述.md', buildOverviewMarkdown(script))
-    folder.file('02_角色设定.md', buildCharactersMarkdown(script))
-    folder.file('03_分集剧本.md', buildEpisodesMarkdown(script))
-    folder.file('04_场景设定.md', buildScenesMarkdown(script))
-    folder.file('05_道具设定.md', buildPropsMarkdown(script))
+  // Overview and characters (MD + DOCX)
+  root.file('剧本概述.md', buildOverviewMarkdown(script))
+  root.file('角色设定.md', buildCharactersMarkdown(script))
+  const overviewDocx = await buildSimpleDocx(`${title} - 概述`, buildOverviewMarkdown(script))
+  root.file('剧本概述.docx', overviewDocx)
+  const charsDocx = await buildSimpleDocx(`${title} - 角色`, buildCharactersMarkdown(script))
+  root.file('角色设定.docx', charsDocx)
+
+  // Per-episode files
+  const epsFolder = root.folder('分集剧本')
+  for (const ep of (script.episodes || [])) {
+    const epLabel = `第${ep.episode_number}集`
+    const epMd = buildEpisodeMarkdown(script, ep)
+    epsFolder.file(`${epLabel}.md`, epMd)
+    const epDocx = await buildSimpleDocx(`${title} - ${epLabel}`, epMd)
+    epsFolder.file(`${epLabel}.docx`, epDocx)
   }
 
-  if (format === 'docx' || format === 'both') {
-    const overviewBlob = await buildSimpleDocx(`${title} - 剧本概述`, buildOverviewMarkdown(script))
-    folder.file('01_剧本概述.docx', overviewBlob)
-
-    const charsBlob = await buildSimpleDocx(`${title} - 角色设定`, buildCharactersMarkdown(script))
-    folder.file('02_角色设定.docx', charsBlob)
-
-    const epsBlob = await buildSimpleDocx(`${title} - 分集剧本`, buildEpisodesMarkdown(script))
-    folder.file('03_分集剧本.docx', epsBlob)
-
-    const scenesBlob = await buildSimpleDocx(`${title} - 场景设定`, buildScenesMarkdown(script))
-    folder.file('04_场景设定.docx', scenesBlob)
-
-    const propsBlob = await buildSimpleDocx(`${title} - 道具设定`, buildPropsMarkdown(script))
-    folder.file('05_道具设定.docx', propsBlob)
-  }
+  // Scenes and props
+  const scenesMd = buildScenesMarkdown(script)
+  if (scenesMd) root.file('场景设定.md', scenesMd)
+  const propsMd = buildPropsMarkdown(script)
+  if (propsMd) root.file('道具设定.md', propsMd)
 
   const zipBlob = await zip.generateAsync({ type: 'blob' })
   saveAs(zipBlob, `${title}.zip`)

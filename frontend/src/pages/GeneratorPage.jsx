@@ -115,14 +115,19 @@ export default function GeneratorPage() {
     }
   }, [taskId, generating])
 
-  // Elapsed time timer
+  // Elapsed time timer — uses backend started_at for accuracy
   useEffect(() => {
     if (generating) {
-      setElapsedSeconds(0)
-      const timer = setInterval(() => setElapsedSeconds(s => s + 1), 1000)
+      const timer = setInterval(() => {
+        if (status?.started_at) {
+          setElapsedSeconds(Math.floor((Date.now() - new Date(status.started_at).getTime()) / 1000))
+        } else {
+          setElapsedSeconds(s => s + 1)
+        }
+      }, 1000)
       return () => clearInterval(timer)
     }
-  }, [generating])
+  }, [generating, status?.started_at])
 
   useEffect(() => {
     if (urlTaskId && !generating) {
@@ -136,6 +141,10 @@ export default function GeneratorPage() {
     try {
       const data = await api.getScriptStatus(taskId)
       setStatus(data)
+      // Update background task label with real title
+      if (data.title) {
+        addTask(`gen-${taskId}`, `正在生成: ${data.title}`)
+      }
       if (data.status === 'completed' || data.status === 'failed') {
         setGenerating(false)
         clearInterval(pollRef.current)
@@ -622,40 +631,49 @@ export default function GeneratorPage() {
             <div className="mb-4">
               <span className="spinner" style={{ width: 48, height: 48, borderWidth: 3 }} />
             </div>
-            <h2 className="text-lg font-semibold text-ink-900 mb-2">正在生成剧本</h2>
+            <h2 className="text-lg font-semibold text-ink-900 mb-2">
+              {status?.title || '正在生成剧本'}
+            </h2>
             <p className="text-sm text-ink-600 font-medium">
               {status?.current_phase || '正在初始化AI引擎...'}
             </p>
+            {status?.current_episode > 0 && (
+              <p className="text-xs text-ink-400 mt-1">
+                正在创作第 {status.current_episode}/{status.total_episodes} 集
+              </p>
+            )}
           </div>
 
           {/* Phase Stepper */}
-          <div className="flex items-center justify-between mb-6 w-full max-w-lg mx-auto">
-            {[
-              { key: 'plan', label: '策划' },
-              { key: 'character', label: '角色' },
-              { key: 'episode', label: '剧集' },
-              { key: 'assemble', label: '组装' },
-            ].map((phase, i, arr) => {
-              const progress = status?.progress || 0
-              const phaseProgress = [15, 20, 95, 100]
-              const isActive = progress < phaseProgress[i] && (i === 0 || progress >= phaseProgress[i - 1])
-              const isDone = progress >= phaseProgress[i]
-              return (
-                <div key={phase.key} className="flex items-center flex-1">
-                  <div className="flex flex-col items-center">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-colors ${
-                      isDone ? 'bg-brand-500 text-white' : isActive ? 'bg-brand-100 text-brand-700 ring-2 ring-brand-500' : 'bg-ink-100 text-ink-400'
-                    }`}>
-                      {isDone ? '✓' : i + 1}
+          <div className="mb-6 max-w-lg mx-auto">
+            <div className="grid grid-cols-4 gap-0">
+              {[
+                { key: 'plan', label: '策划' },
+                { key: 'character', label: '角色' },
+                { key: 'episode', label: '剧集' },
+                { key: 'assemble', label: '组装' },
+              ].map((phase, i, arr) => {
+                const progress = status?.progress || 0
+                const phaseProgress = [15, 20, 95, 100]
+                const isActive = progress < phaseProgress[i] && (i === 0 || progress >= phaseProgress[i - 1])
+                const isDone = progress >= phaseProgress[i]
+                return (
+                  <div key={phase.key} className="flex items-center">
+                    <div className="flex flex-col items-center">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-colors ${
+                        isDone ? 'bg-brand-500 text-white' : isActive ? 'bg-brand-100 text-brand-700 ring-2 ring-brand-500' : 'bg-ink-100 text-ink-400'
+                      }`}>
+                        {isDone ? '✓' : i + 1}
+                      </div>
+                      <span className={`text-xs mt-1 ${isDone || isActive ? 'text-ink-700' : 'text-ink-400'}`}>{phase.label}</span>
                     </div>
-                    <span className={`text-xs mt-1 ${isDone || isActive ? 'text-ink-700' : 'text-ink-400'}`}>{phase.label}</span>
+                    {i < arr.length - 1 && (
+                      <div className={`flex-1 h-0.5 mx-1 mb-4 ${isDone ? 'bg-brand-500' : 'bg-ink-100'}`} />
+                    )}
                   </div>
-                  {i < arr.length - 1 && (
-                    <div className={`flex-1 h-0.5 mx-2 mt-[-16px] ${isDone ? 'bg-brand-500' : 'bg-ink-100'}`} />
-                  )}
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
 
           {/* Progress Bar */}

@@ -93,6 +93,8 @@ class Script(BaseModel):
     synopsis: str = ""
     characters: list[Character] = []
     episodes: list[Episode] = []
+    scenes: list[dict] = []
+    props: list[dict] = []
     theme: str = ""
     emotional_tone: str = ""
     target_audience: str = ""
@@ -126,6 +128,8 @@ class ScriptResponse(BaseModel):
     current_phase: str = ""
     script: Optional[Script] = None
     error: str = ""
+    started_at: str = ""  # ISO timestamp when generation started
+    title: str = ""  # script title (available after planning phase)
 
 
 class KnowledgeEntity(BaseModel):

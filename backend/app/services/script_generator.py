@@ -856,6 +856,7 @@ class ScriptGenerator:
             status="generating",
             progress=0.0,
             total_episodes=request.episode_count,
+            started_at=datetime.now().isoformat(),
         )
 
         asyncio.create_task(self._generate_script(task_id, project_id, request))
@@ -911,6 +912,9 @@ class ScriptGenerator:
             story_plan = await self._plan_story(request)
             if not story_plan:
                 raise Exception("故事策划失败，请检查AI配置")
+
+            # Set the script title early so UI can display it
+            self._active_tasks[task_id].title = story_plan.get("title", request.topic)
 
             # Initialize knowledge base
             self._init_knowledge_base(kb, story_plan)
@@ -979,23 +983,17 @@ class ScriptGenerator:
                 synopsis=story_plan.get("synopsis", ""),
                 characters=characters,
                 episodes=episodes,
+                scenes=story_plan.get("scenes", []),
+                props=story_plan.get("props", []),
                 theme=story_plan.get("theme", ""),
                 emotional_tone=story_plan.get("emotional_tone", ""),
                 target_audience=request.target_audience,
                 style=request.style,
             )
 
-            # Store scene and prop data in the script's synopsis (extended)
-            script_data = script.model_dump()
-            script_data["scenes"] = story_plan.get("scenes", [])
-            script_data["props"] = story_plan.get("props", [])
-
             self._active_tasks[task_id].script = script
             self._active_tasks[task_id].status = "completed"
             self._active_tasks[task_id].progress = 100.0
-
-            # Store extended data
-            self._active_tasks[task_id]._extended_data = script_data
 
             # Store completed script persistently so it's available even if abandoned by polling
             self._completed_scripts[task_id] = script.model_dump()
@@ -1344,7 +1342,7 @@ class ScriptGenerator:
 
         return {}
 
-    async def _call_and_extract_json(self, messages: list[dict], temperature: float = 0.8, max_tokens: int = 8192, max_retries: int = 2) -> dict:
+    async def _call_and_extract_json(self, messages: list[dict], temperature: float = 0.8, max_tokens: int = 8192, max_retries: int = 20) -> dict:
         """Call LLM and extract JSON, retrying if parsing fails."""
         last_response = ""
         for attempt in range(max_retries + 1):

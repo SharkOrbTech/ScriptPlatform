@@ -102,12 +102,7 @@ async def get_generation_status(task_id: str):
 
     result = status.model_dump()
     if status.script:
-        # Get extended data if available
-        extended = getattr(status, '_extended_data', None)
-        if extended:
-            result["script"] = extended
-        else:
-            result["script"] = status.script.model_dump()
+        result["script"] = status.script.model_dump()
         _script_store[task_id] = result["script"]
         _save_disk_cache()
     return _sanitize_json(result)
