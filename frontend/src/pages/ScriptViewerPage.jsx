@@ -412,7 +412,7 @@ function ShotCard({ shot, showAll }) {
   const containerClass = hookInfo ? `${hookInfo.bg} border-l-4 ${hookInfo.border}` : 'border border-ink-100'
   const headerBg = hookInfo ? hookInfo.bg : 'bg-ink-50'
 
-  const aiPrompt = shot.ai_prompt || shot.ai_prompt_cn
+  const videoPrompt = shot.video_prompt || shot.ai_prompt || shot.ai_prompt_cn
 
   return (
     <div className={`${containerClass} rounded-lg overflow-hidden`}>
@@ -444,7 +444,7 @@ function ShotCard({ shot, showAll }) {
         </div>
         {shot.narration && (
           <div>
-            <div className="text-xs font-medium text-ink-500 mb-0.5">旁白</div>
+            <div className="text-xs font-medium text-ink-500 mb-0.5">内心独白</div>
             <p className="text-sm text-ink-700 italic bg-amber-50 border-l-2 border-amber-300 pl-2 py-1 rounded-r">「{shot.narration}」</p>
           </div>
         )}
@@ -454,23 +454,20 @@ function ShotCard({ shot, showAll }) {
             <p className="text-sm text-ink-800 italic">"{shot.dialogue}"</p>
           </div>
         )}
-        {showAll && aiPrompt && (
+        {showAll && videoPrompt && (
           <div>
             <div className="flex items-center justify-between mb-0.5">
-              <span className="text-xs font-medium text-ink-500">AI绘图提示词</span>
-              <button className="text-xs text-brand-600" onClick={() => copyText(aiPrompt, 'prompt')}>
-                {copied === 'prompt' ? '已复制' : '复制'}
+              <span className="text-xs font-medium text-ink-500">视频生成提示词</span>
+              <button className="text-xs text-brand-600" onClick={() => copyText(videoPrompt, 'video_prompt')}>
+                {copied === 'video_prompt' ? '已复制' : '复制'}
               </button>
             </div>
-            <p className="text-xs text-ink-600 bg-ink-50 p-2 rounded-lg font-mono">{aiPrompt}</p>
+            <p className="text-xs text-ink-600 bg-ink-50 p-2 rounded-lg font-mono">{videoPrompt}</p>
           </div>
         )}
-        {showAll && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-            {shot.lighting && <div><span className="text-ink-400">光影:</span> {shot.lighting}</div>}
-            {shot.emotion && <div><span className="text-ink-400">情绪:</span> {shot.emotion}</div>}
-            {shot.sound_effects && <div><span className="text-ink-400">音效:</span> {shot.sound_effects}</div>}
-            {shot.notes && <div><span className="text-ink-400">备注:</span> {shot.notes}</div>}
+        {showAll && shot.notes && (
+          <div className="text-xs">
+            <span className="text-ink-400">备注:</span> {shot.notes}
           </div>
         )}
       </div>

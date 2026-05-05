@@ -25,11 +25,8 @@ MOCK_EPISODE = {
             "frame_content": "测试画面",
             "dialogue": "测试台词",
             "narration": "测试旁白",
-            "sound_effects": "",
             "duration": 5.0,
-            "ai_prompt": "测试提示词",
-            "lighting": "自然光",
-            "emotion": "测试情绪",
+            "video_prompt": "测试提示词",
             "hook_type": "hook",
             "hook_detail": "测试钩子详情"
         },
@@ -40,11 +37,8 @@ MOCK_EPISODE = {
             "frame_content": "测试画面2",
             "dialogue": "测试台词2",
             "narration": "",
-            "sound_effects": "",
             "duration": 5.0,
-            "ai_prompt": "测试提示词2",
-            "lighting": "侧光",
-            "emotion": "测试情绪2"
+            "video_prompt": "测试提示词2"
         }
     ]
 }
@@ -60,7 +54,7 @@ MOCK_STORY_PLAN = {
         {"name": "角色A", "age": "20", "identity": "测试", "personality": "测试",
          "appearance": "测试", "clothing": "测试", "signature_element": "测试",
          "arc": "测试", "three_view_prompt": "正面：测试。侧面：测试。背面：测试",
-         "ai_prompt": "测试角色提示词"}
+         "three_view_prompt": "测试角色提示词"}
     ],
     "scenes": [{"name": "场景A", "description": "测试", "atmosphere": "测试", "scene_prompt": "测试场景提示词"}],
     "props": [{"name": "道具A", "description": "测试", "significance": "测试", "ai_prompt": "测试道具提示词"}],

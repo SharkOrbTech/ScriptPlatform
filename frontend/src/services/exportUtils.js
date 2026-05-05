@@ -71,7 +71,8 @@ function buildMarkdown(script) {
           if (shot.frame_content) lines.push(`画面: ${shot.frame_content}`)
           if (shot.narration) lines.push(`旁白: ${shot.narration}`)
           if (shot.dialogue) lines.push(`台词: ${shot.dialogue}`)
-          if (shot.ai_prompt) lines.push(`AI提示词: ${shot.ai_prompt}`)
+          if (shot.video_prompt) lines.push(`视频生成提示词: ${shot.video_prompt}`)
+          else if (shot.ai_prompt) lines.push(`AI提示词: ${shot.ai_prompt}`)
           if (shot.hook_type) lines.push(`钩子类型: ${shot.hook_type} - ${shot.hook_detail || ''}`)
           lines.push('')
         }
@@ -238,7 +239,11 @@ export function exportToDocx(script) {
               children: [new TextRun({ text: `台词: ${shot.dialogue}`, size: 22 })],
             }))
           }
-          if (shot.ai_prompt) {
+          if (shot.video_prompt) {
+            children.push(new Paragraph({
+              children: [new TextRun({ text: `视频生成提示词: ${shot.video_prompt}`, size: 20, italics: true, color: '555555' })],
+            }))
+          } else if (shot.ai_prompt) {
             children.push(new Paragraph({
               children: [new TextRun({ text: `AI提示词: ${shot.ai_prompt}`, size: 20, italics: true, color: '555555' })],
             }))
@@ -294,7 +299,8 @@ function buildCharactersMarkdown(script) {
     if (c.clothing) lines.push(`- **穿着**: ${c.clothing}`)
     if (c.signature_element) lines.push(`- **标志元素**: ${c.signature_element}`)
     if (c.arc) lines.push(`- **成长弧线**: ${c.arc}`)
-    if (c.ai_prompt) lines.push(`- **AI提示词**: ${c.ai_prompt}`)
+    if (c.three_view_prompt) lines.push(`- **三视图提示词**: ${c.three_view_prompt}`)
+    else if (c.ai_prompt) lines.push(`- **AI提示词**: ${c.ai_prompt}`)
     lines.push('')
   }
   return lines.join('\n')
@@ -321,8 +327,8 @@ function buildEpisodesMarkdown(script) {
         lines.push(`**镜头 ${shot.shot_number}** [${shot.shot_type || '-'}] [${shot.camera_movement || '-'}]`)
         if (shot.frame_content) lines.push(`画面: ${shot.frame_content}`)
         if (shot.dialogue) lines.push(`台词: ${shot.dialogue}`)
-        if (shot.sound_effects) lines.push(`音效: ${shot.sound_effects}`)
-        if (shot.ai_prompt) lines.push(`AI提示词: ${shot.ai_prompt}`)
+        if (shot.video_prompt) lines.push(`视频生成提示词: ${shot.video_prompt}`)
+        else if (shot.ai_prompt) lines.push(`AI提示词: ${shot.ai_prompt}`)
         if (shot.hook_type) lines.push(`钩子: ${shot.hook_type} - ${shot.hook_detail || ''}`)
         lines.push('')
       }
@@ -389,10 +395,15 @@ function buildSimpleDocx(title, markdownContent) {
         children: [new TextRun({ text: line.replace(/^#+\s*/, ''), bold: true, size: 24 })],
         heading: HeadingLevel.HEADING_3,
       }))
-    } else if (line.startsWith('**') && line.endsWith('**')) {
-      children.push(new Paragraph({
-        children: [new TextRun({ text: line.replace(/\*\*/g, ''), bold: true, size: 22 })],
-      }))
+    } else if (line.includes('**')) {
+      const parts = line.split(/(\*\*[^*]+\*\*)/)
+      const runs = parts.map(part => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+          return new TextRun({ text: part.slice(2, -2), bold: true, size: 22 })
+        }
+        return new TextRun({ text: part, size: 22 })
+      })
+      children.push(new Paragraph({ children: runs }))
     } else if (line.startsWith('> ')) {
       children.push(new Paragraph({
         children: [new TextRun({ text: line.replace(/^>\s*/, ''), italics: true, size: 22, color: '666666' })],

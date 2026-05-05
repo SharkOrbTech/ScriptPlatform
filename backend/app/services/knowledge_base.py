@@ -253,13 +253,11 @@ class KnowledgeBase:
         for shot in episode.shots:
             content = f"{shot.frame_content} {shot.dialogue} {shot.narration}"
 
-            # 1. Update existing character mentions and emotional state
+            # 1. Update existing character mentions
             for name, entity in existing_chars.items():
                 if name in content:
                     entity.attributes.setdefault("last_mentioned", f"第{episode.episode_number}集")
                     entity.attributes["appearances"] = entity.attributes.get("appearances", 0) + 1
-                    if shot.emotion and name in shot.dialogue:
-                        entity.attributes["last_emotion"] = shot.emotion
                     self.add_entity(entity)
 
             # 2. Extract locations from frame_content

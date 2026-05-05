@@ -569,7 +569,7 @@ async def test_upload_novel_with_characters(client):
                         "shot_type": "特写",
                         "frame_content": "女主睁眼",
                         "dialogue": "我重生了？",
-                        "ai_prompt": "close-up of a woman opening her eyes",
+                        "video_prompt": "特写镜头，女主缓缓睁开眼睛，瞳孔中倒映着天花板的灯光，她低声说'我重生了？'",
                         "hook_type": "hook",
                     }
                 ],

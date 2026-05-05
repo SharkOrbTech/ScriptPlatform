@@ -51,15 +51,12 @@ class Shot(BaseModel):
     shot_type: str  # 远景/中景/近景/特写
     camera_movement: str  # 推/拉/摇/移/跟/固定
     frame_content: str  # 画面内容描述
-    dialogue: str = ""  # 台词
-    narration: str = ""  # 旁白/画外音（内心独白、解说、回忆旁白等）
-    sound_effects: str = ""  # 音效
+    dialogue: str = ""  # 台词（与旁白互斥，同一镜头只能有其一）
+    narration: str = ""  # 旁白/内心独白（仅限内心独白，与台词互斥）
     duration: float = 3.0  # 时长(秒)
-    ai_prompt: str = ""  # AI绘图提示词
-    lighting: str = ""  # 光影
-    emotion: str = ""  # 情绪氛围
+    video_prompt: str = ""  # 视频生成提示词（全中文自然语言，角色用【角色名】，描述场景+动作+情绪+光影+音效+台词）
     notes: str = ""  # 备注
-    hook_type: Optional[str] = None  # 钩子类型: hook/cliffhanger/foreshadowing/turning_point/emotional_peak/revelation/conflict
+    hook_type: Optional[str] = None  # 钩子类型
     hook_detail: str = ""  # 钩子详细分析
 
 
@@ -85,7 +82,7 @@ class Character(BaseModel):
     signature_element: str = ""
     arc: str = ""
     relationships: dict[str, str] = {}
-    ai_prompt: str = ""
+    three_view_prompt: str = ""  # 三视图AI提示词
 
 
 class Script(BaseModel):
