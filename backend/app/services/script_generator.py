@@ -844,6 +844,7 @@ class ScriptGenerator:
 
     def __init__(self):
         self._active_tasks: dict[str, ScriptResponse] = {}
+        self._completed_scripts: dict[str, dict] = {}
 
     async def start_generation(self, request: ScriptRequest) -> str:
         """Start async script generation. Returns task ID."""
@@ -862,6 +863,42 @@ class ScriptGenerator:
 
     async def get_task_status(self, task_id: str) -> Optional[ScriptResponse]:
         return self._active_tasks.get(task_id)
+
+    def list_all_tasks(self) -> list[dict]:
+        """Return all tasks: active (generating) + completed. For script list UI."""
+        tasks = []
+        for task_id, task in self._active_tasks.items():
+            script_data = task.script.model_dump() if task.script else None
+            # Also check _completed_scripts for scripts that finished but were polled
+            completed = self._completed_scripts.get(task_id)
+            if completed and not script_data:
+                script_data = completed
+            tasks.append({
+                "id": task_id,
+                "title": script_data.get("title", "") if script_data else task.current_phase or "正在生成...",
+                "genre": script_data.get("genre", "") if script_data else "",
+                "status": task.status,
+                "progress": task.progress,
+                "current_phase": task.current_phase,
+                "created_at": script_data.get("created_at", "") if script_data else "",
+            })
+        # Add completed scripts that are no longer in _active_tasks
+        for task_id, script in self._completed_scripts.items():
+            if task_id not in self._active_tasks:
+                tasks.append({
+                    "id": task_id,
+                    "title": script.get("title", ""),
+                    "genre": script.get("genre", ""),
+                    "status": "completed",
+                    "progress": 100.0,
+                    "current_phase": "",
+                    "created_at": script.get("created_at", ""),
+                })
+        return tasks
+
+    def get_completed_script(self, task_id: str) -> Optional[dict]:
+        """Get a completed script by ID, even if no longer in active tasks."""
+        return self._completed_scripts.get(task_id)
 
     async def _generate_script(self, task_id: str, project_id: str, request: ScriptRequest):
         """Full script generation pipeline."""
@@ -959,6 +996,9 @@ class ScriptGenerator:
 
             # Store extended data
             self._active_tasks[task_id]._extended_data = script_data
+
+            # Store completed script persistently so it's available even if abandoned by polling
+            self._completed_scripts[task_id] = script.model_dump()
 
         except Exception as e:
             logger.error(f"Script generation failed: {e}", exc_info=True)

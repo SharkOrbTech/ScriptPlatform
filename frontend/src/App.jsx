@@ -41,18 +41,24 @@ export function BackgroundTaskProvider({ children }) {
 function BackgroundSpinner({ tasks }) {
   const navigate = useNavigate()
   return (
-    <div className="z-50 animate-fade-in cursor-pointer" style={{ position: 'fixed', bottom: 80, right: 16 }} onClick={() => navigate('/generate')}>
-      <div className="bg-white border border-ink-200 rounded-xl shadow-lg px-4 py-3 flex items-center gap-3 min-w-[200px] hover:border-brand-300 hover:shadow-md transition-all">
-        <span className="spinner" style={{ width: 20, height: 20, borderWidth: 2 }} />
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium text-ink-800 truncate">
-            {tasks[tasks.length - 1].label}
-          </div>
-          {tasks.length > 1 && (
-            <div className="text-xs text-ink-400">还有 {tasks.length - 1} 个后台任务</div>
-          )}
-          <div className="text-xs text-brand-500 mt-0.5">点击回到生成页面</div>
-        </div>
+    <div className="z-50 animate-fade-in" style={{ position: 'fixed', bottom: 80, right: 16 }}>
+      <div className="flex flex-col gap-2">
+        {tasks.map((task) => {
+          const taskId = task.id.startsWith('gen-') ? task.id.slice(4) : task.id
+          return (
+            <div
+              key={task.id}
+              className="bg-white border border-ink-200 rounded-xl shadow-lg px-4 py-3 flex items-center gap-3 min-w-[220px] hover:border-brand-300 hover:shadow-md transition-all cursor-pointer"
+              onClick={() => navigate(`/generate/${taskId}`)}
+            >
+              <span className="spinner" style={{ width: 20, height: 20, borderWidth: 2 }} />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-ink-800 truncate">{task.label}</div>
+                <div className="text-xs text-brand-500 mt-0.5">点击查看进度</div>
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

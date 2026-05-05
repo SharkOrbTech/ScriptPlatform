@@ -83,29 +83,64 @@ async def get_generation_status(task_id: str):
 
 @router.get("/list")
 async def list_scripts():
-    """获取已生成的剧本列表"""
-    return {
-        "items": [
-            {
-                "id": s.get("id", ""),
-                "title": s.get("title", ""),
-                "genre": s.get("genre", ""),
-                "logline": s.get("logline", ""),
-                "episode_count": len(s.get("episodes", [])),
-                "character_count": len(s.get("characters", [])),
-                "created_at": s.get("created_at", ""),
-            }
-            for s in _script_store.values()
-        ]
-    }
+    """获取所有剧本列表（含生成中）"""
+    items = []
+    seen_ids = set()
+
+    # Add stored (completed via polling) scripts
+    for s in _script_store.values():
+        items.append({
+            "id": s.get("id", ""),
+            "title": s.get("title", ""),
+            "genre": s.get("genre", ""),
+            "logline": s.get("logline", ""),
+            "episode_count": len(s.get("episodes", [])),
+            "character_count": len(s.get("characters", [])),
+            "created_at": s.get("created_at", ""),
+            "status": "completed",
+        })
+        seen_ids.add(s.get("id", ""))
+
+    # Add tasks from script generator (includes in-progress and completed)
+    for task in script_generator.list_all_tasks():
+        if task["id"] not in seen_ids:
+            items.append({
+                "id": task["id"],
+                "title": task["title"],
+                "genre": task["genre"],
+                "logline": "",
+                "episode_count": 0,
+                "character_count": 0,
+                "created_at": task["created_at"],
+                "status": task["status"],
+                "progress": task["progress"],
+                "current_phase": task["current_phase"],
+            })
+            seen_ids.add(task["id"])
+
+    return {"items": items}
 
 
 @router.get("/{script_id}")
 async def get_script(script_id: str):
-    """获取完整剧本（含角色设计、场景、道具）"""
-    if script_id not in _script_store:
-        raise HTTPException(status_code=404, detail="剧本不存在")
-    return _script_store[script_id]
+    """获取完整剧本（含生成中和已完成）"""
+    if script_id in _script_store:
+        return _script_store[script_id]
+    # Check generator's completed scripts as fallback
+    completed = script_generator.get_completed_script(script_id)
+    if completed:
+        return completed
+    # Check if it's a generating task
+    task = await script_generator.get_task_status(script_id)
+    if task:
+        return {
+            "id": script_id,
+            "status": task.status,
+            "progress": task.progress,
+            "current_phase": task.current_phase,
+            "title": task.current_phase or "正在生成...",
+        }
+    raise HTTPException(status_code=404, detail="剧本不存在")
 
 
 @router.post("/upload-novel")

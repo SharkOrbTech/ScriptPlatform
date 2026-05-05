@@ -51,29 +51,49 @@ export default function ScriptListPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {scripts.map((script) => (
-            <Link
-              key={script.id}
-              to={`/scripts/${script.id}`}
-              className="card p-4 hover:border-ink-200 transition-colors block no-underline"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-semibold text-ink-900">{script.title}</h3>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="badge badge-brand">{script.genre}</span>
-                    <span className="text-xs text-ink-400">{script.episode_count}集</span>
-                    {script.logline && (
-                      <span className="text-xs text-ink-500 truncate max-w-md">{script.logline}</span>
-                    )}
+          {scripts.map((script) => {
+            const isGenerating = script.status === 'generating'
+            const isFailed = script.status === 'failed'
+            return (
+              <Link
+                key={script.id}
+                to={isGenerating ? `/generate/${script.id}` : `/scripts/${script.id}`}
+                className={`card p-4 transition-colors block no-underline ${isGenerating ? 'border-brand-200 bg-brand-50 hover:border-brand-300' : 'hover:border-ink-200'}`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-semibold text-ink-900">{script.title || '正在生成剧本...'}</h3>
+                      {isGenerating && (
+                        <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+                      )}
+                      {isFailed && (
+                        <span className="badge bg-red-100 text-red-700 border-red-200">失败</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      {script.genre && <span className="badge badge-brand">{script.genre}</span>}
+                      {script.episode_count > 0 && <span className="text-xs text-ink-400">{script.episode_count}集</span>}
+                      {isGenerating && (
+                        <div className="flex items-center gap-2">
+                          <div className="w-20 bg-ink-200 rounded-full h-1.5">
+                            <div className="bg-brand-500 h-1.5 rounded-full transition-all" style={{ width: `${script.progress || 0}%` }} />
+                          </div>
+                          <span className="text-xs text-brand-600">{script.current_phase || ''}</span>
+                        </div>
+                      )}
+                      {!isGenerating && script.logline && (
+                        <span className="text-xs text-ink-500 truncate max-w-md">{script.logline}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-xs text-ink-400">
+                    {isGenerating ? `${Math.round(script.progress || 0)}%` : (script.created_at ? new Date(script.created_at).toLocaleDateString('zh-CN') : '')}
                   </div>
                 </div>
-                <div className="text-xs text-ink-400">
-                  {script.created_at ? new Date(script.created_at).toLocaleDateString('zh-CN') : ''}
-                </div>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            )
+          })}
         </div>
       )}
     </div>
