@@ -391,7 +391,7 @@ export default function GeneratorPage() {
           </div>
 
           <div className="mb-4">
-            <label className="label">漫剧风格</label>
+            <label className="label">画面风格</label>
             <div className="flex flex-wrap gap-2">
               {styles.map((s) => (
                 <button
