@@ -149,7 +149,7 @@ export default function GeneratorPage() {
       topic: topic.title,
       trend_context: `热点灵感来源（仅供创意参考，请勿直接复制）:\n题材类型: ${tags.slice(0, 3).join('、')}\n热门元素: ${topic.description || topic.title}\n该热点的核心吸引力在于其题材设定和情感共鸣点`,
     }))
-    // Load topic-specific genres
+    // Load topic-specific genres + auto-select audience and style
     api.getConfigForTopic(topic.title).then((data) => {
       if (data.genres?.length > 0) {
         setConfig(prev => ({
@@ -157,7 +157,12 @@ export default function GeneratorPage() {
           genres: data.genres,
           styles: data.styles?.length > 0 ? data.styles : prev?.styles,
         }))
-        setForm(prev => ({ ...prev, genre: data.genres[0].value }))
+        setForm(prev => ({
+          ...prev,
+          genre: data.genres[0].value,
+          target_audience: data.suggested_audience || prev.target_audience,
+          style: data.suggested_style || prev.style,
+        }))
       }
     }).catch(() => {})
     setStep(2)

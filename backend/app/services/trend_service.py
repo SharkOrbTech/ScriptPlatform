@@ -368,7 +368,35 @@ class TrendService:
         if not style_tags:
             style_tags = ["古风", "现代都市", "赛博朋克", "日漫", "韩漫", "写实", "国潮"]
 
-        return {"genres": genres[:20], "styles": style_tags[:10]}
+        # Infer suggested audience from genre tags
+        male_genres = {"穿越", "战神", "赘婿", "玄幻", "系统", "商战", "谍战", "逆袭", "仙侠", "末日", "脑洞"}
+        female_genres = {"重生", "甜宠", "复仇", "豪门", "总裁", "校园", "民国", "种田", "宫斗"}
+        genre_set = {tag for tag, _ in tag_counter.most_common(10)}
+        male_count = len(genre_set & male_genres)
+        female_count = len(genre_set & female_genres)
+        if male_count > female_count:
+            suggested_audience = "18-35岁男性"
+        elif female_count > male_count:
+            suggested_audience = "18-35岁女性"
+        else:
+            suggested_audience = "全年龄"
+
+        # Infer suggested style
+        ancient_genres = {"古装", "穿越", "仙侠", "玄幻", "民国", "古风", "种田", "宫斗"}
+        modern_genres = {"都市", "总裁", "豪门", "校园", "商战", "谍战"}
+        if len(genre_set & ancient_genres) > len(genre_set & modern_genres):
+            suggested_style = "古风"
+        elif len(genre_set & modern_genres) > len(genre_set & ancient_genres):
+            suggested_style = "现代都市"
+        else:
+            suggested_style = style_tags[0] if style_tags else "古风"
+
+        return {
+            "genres": genres[:20],
+            "styles": style_tags[:10],
+            "suggested_audience": suggested_audience,
+            "suggested_style": suggested_style,
+        }
 
     async def get_smart_suggestions(self, topic: str) -> dict:
         """Get smart suggestions for a user topic, combining trend data."""
