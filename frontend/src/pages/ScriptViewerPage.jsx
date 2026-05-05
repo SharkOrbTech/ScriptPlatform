@@ -454,7 +454,7 @@ function ShotCard({ shot, showAll }) {
             <p className="text-sm text-ink-800 italic">"{shot.dialogue}"</p>
           </div>
         )}
-        {showAll && videoPrompt && (
+        {videoPrompt && (
           <div>
             <div className="flex items-center justify-between mb-0.5">
               <span className="text-xs font-medium text-ink-500">视频生成提示词</span>
