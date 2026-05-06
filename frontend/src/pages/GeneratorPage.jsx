@@ -36,8 +36,8 @@ export default function GeneratorPage() {
     genre: '',
     episode_count: 8,
     episode_duration: 90,
-    target_audience: '18-35岁女性',
-    style: '古风',
+    target_audience: '',
+    style: '',
     special_requirements: '',
     trend_context: '',
   })
@@ -391,6 +391,12 @@ export default function GeneratorPage() {
           <h2 className="text-lg font-semibold text-ink-900 mb-1">选择题材和风格</h2>
           <p className="text-sm text-ink-500 mb-4">基于当前热点趋势，以下是热门题材</p>
 
+          {genres.length === 0 ? (
+            <div className="flex items-center gap-2 text-sm text-ink-400 py-8 justify-center">
+              <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+              正在加载热门题材...
+            </div>
+          ) : (
           <div className="mb-4">
             <label className="label">题材类型</label>
             <div className="flex flex-wrap gap-2">
@@ -409,7 +415,15 @@ export default function GeneratorPage() {
                 </button>
               ))}
             </div>
+            <input
+              type="text"
+              className="input mt-2 w-full text-sm"
+              placeholder="或手动输入题材..."
+              value={form.genre}
+              onChange={(e) => handleChange('genre', e.target.value)}
+            />
           </div>
+          )}
 
           <div className="mb-4">
             <label className="label">画面风格</label>
@@ -428,6 +442,13 @@ export default function GeneratorPage() {
                 </button>
               ))}
             </div>
+            <input
+              type="text"
+              className="input mt-2 w-full text-sm"
+              placeholder="或手动输入风格..."
+              value={form.style}
+              onChange={(e) => handleChange('style', e.target.value)}
+            />
           </div>
 
           <div className="grid grid-cols-3 gap-4 mb-4">
