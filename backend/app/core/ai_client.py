@@ -17,9 +17,12 @@ class AIClient:
     def __init__(self):
         self.provider = settings.AI_PROVIDER
         if self.provider == "openai":
+            import httpx
             self.client = openai.AsyncOpenAI(
                 api_key=settings.OPENAI_API_KEY,
                 base_url=settings.OPENAI_BASE_URL,
+                timeout=httpx.Timeout(300.0, connect=10.0),
+                max_retries=0,  # we handle retries ourselves
             )
             self.model = settings.OPENAI_MODEL
         else:
