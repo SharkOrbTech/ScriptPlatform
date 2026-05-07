@@ -148,20 +148,25 @@ Phase 4: 输出整合 (progress 95→100%)
 
 #### 2. 知识库架构 (`knowledge_base.py`)
 
+每个剧本项目拥有独立的知识库目录，通过文件系统持久化：
+
 ```
 knowledge_base/{project_id}/
-├── manifest.json           # 项目清单
-│   ├── entities            # 实体索引（名称→文件映射）
-│   ├── plot_threads        # 活跃剧情线
-│   ├── foreshadowing       # 未解伏笔（伏笔描述、埋设集数、揭晓集数）
-│   └── world_rules         # 世界观规则
+├── manifest.json            # 项目清单（元索引）
+│   ├── entities: {}         #   所有实体的索引（名称→文件路径映射）
+│   ├── plot_threads: []     #   活跃剧情线及状态
+│   ├── foreshadowing: []    #   伏笔列表（含 resolved 标记）
+│   ├── world_rules: []      #   世界观规则
+│   └── episodes: []         #   已完成集数列表
 ├── entities/
-│   ├── character_*.json    # 角色实体（身份、性格、外貌、关系、成长弧线）
-│   ├── location_*.json     # 地点实体（场景描述、氛围、时间）
-│   └── item_*.json         # 道具实体（描述、首次出现集数）
+│   ├── character_*.json     #   角色实体 (name, description, attributes)
+│   ├── location_*.json      #   地点实体 (name, description, atmosphere)
+│   └── item_*.json          #   道具实体 (name, description, first_appearance)
 └── episodes/
-    └── episode_*.json      # 每集数据（标题、概要、分镜、钩子）
+    └── episode_NN.json      #   每集完整数据 (标题/概要/分镜/钩子/总时长)
 ```
+
+**与普通 DB 方案的区别**：每个实体是独立文件，支持人类直接检查和修改。manifest.json 作为轻量索引，只在需要时加载。
 
 每集生成时自动构建上下文：
 - 角色信息（身份、性格、外貌、关系、成长弧线）
@@ -171,6 +176,38 @@ knowledge_base/{project_id}/
 - 未解伏笔（埋设→揭晓对应）
 - 世界观规则
 - 上一集概要 + 悬念
+
+**伏笔管理机制**：
+
+伏笔的完整生命周期分为三个阶段：
+
+```
+策划阶段预埋：
+  STORY_PLANNER_PROMPT 输出 foreshadowing[] 数组
+  每个元素包含: setup(伏笔内容), episode(埋设集), payoff_episode(揭晓集)
+  → _init_knowledge_base() 写入 manifest.json，resolved=false
+
+逐集上下文注入：
+  get_context_for_episode(N) 从 manifest 中筛选 unresolved 的伏笔
+  → 注入 LLM 上下文: "## 未解伏笔\n- 扳指(第1集埋): 预计第30集揭晓"
+  → LLM 看到后在本集分镜中安排回收
+
+逐集自动发现：
+  extract_entities_from_episode() 扫描每集分镜
+  → 发现 hook_type="foreshadowing" 的镜头自动注册新伏笔
+  → 已回收的伏笔标记 resolved=true，不再注入后续上下文
+```
+
+**实体跟踪机制**：
+
+```
+角色实体：每集扫描分镜内容，检测角色名出现 → 更新 last_mentioned 和 appearances
+场景实体：正则匹配 "XX殿""XX宫"等地点关键词 → 自动注册新场景
+道具实体：正则匹配 "XX刀""XX戒指"等物品关键词 → 自动注册新道具
+剧情线：每集 key_conflict 和 emotional_arc 自动生成剧情线条目
+```
+
+所有实体存储在 `knowledge_base/{project_id}/manifest.json` 中，随每集生成增量更新，确保跨集一致性。
 
 #### 3. 小说智能改编 — 完整流程
 
