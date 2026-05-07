@@ -155,7 +155,15 @@ export default function GeneratorPage() {
           navigate(`/scripts/${taskId}`, { state: { script: data.script } })
         }
       }
-    } catch (err) {}
+    } catch (err) {
+      // Task no longer exists (e.g., server restart) — stop polling
+      if (err.message?.includes('不存在') || err.message?.includes('404') || err.message?.includes('not found')) {
+        setGenerating(false)
+        clearInterval(pollRef.current)
+        removeTask(`gen-${taskId}`)
+        setStatus({ status: 'failed', error: '任务已丢失（服务器可能重启了），请重新生成' })
+      }
+    }
   }
 
   function selectTopic(topic) {
