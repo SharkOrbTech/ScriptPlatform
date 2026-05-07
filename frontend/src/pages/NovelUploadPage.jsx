@@ -10,7 +10,7 @@ export default function NovelUploadPage() {
   const [error, setError] = useState('')
   const [params, setParams] = useState({
     episode_count: 8,
-    genre: 'rebirth',
+    genre: '重生',
     style: '古风',
   })
 
@@ -109,12 +109,12 @@ export default function NovelUploadPage() {
               value={params.genre}
               onChange={(e) => setParams({ ...params, genre: e.target.value })}
             >
-              <option value="rebirth">重生</option>
-              <option value="revenge">复仇</option>
-              <option value="romance">甜宠</option>
-              <option value="fantasy">玄幻</option>
-              <option value="urban">都市</option>
-              <option value="period">古装</option>
+              <option value="重生">重生</option>
+              <option value="复仇">复仇</option>
+              <option value="甜宠">甜宠</option>
+              <option value="玄幻">玄幻</option>
+              <option value="都市">都市</option>
+              <option value="古装">古装</option>
             </select>
           </div>
           <div>

@@ -10,7 +10,7 @@ AI驱动的短剧剧本生成平台，聚合热点趋势，智能生成完整多
 - **视频生成提示词**: 每个镜头输出完整的AI视频模型指令（全中文自然语言，角色用【角色名】引用，包含台词/独白/动作/光影/音效），用户可一键复制给视频生成模型
 - **旁白系统**: 旁白仅限内心独白（OS），台词与旁白在同一镜头互斥，字数灵活不强制
 - **钩子标记系统**: 自然融入剧情，仅在关键节点标记钩子类型（hook/cliffhanger/foreshadowing/turning_point/emotional_peak/revelation/conflict），前端彩色高亮显示
-- **小说智能改编**: 支持数百万字超长小说，分层摘要 + 关键章节提取，不塞入全量上下文
+- **小说智能改编**: 异步上传+进度轮询，分层摘要+关键章节提取，并行episode生成，自动知识库一致性保障
 - **原著钩子提取**: 改编小说时自动提取原著中的悬念点、反转、情感高潮，确保改编忠实原著节奏
 - **知识库管理**: 角色、地点、伏笔等实体持久化，确保长剧本一致性
 - **版权风险检测**: 自动检查剧本与已有内容的相似度
@@ -128,20 +128,21 @@ script/
 
 #### 1. 剧本生成引擎 (`script_generator.py`)
 
-生成流程分为4个阶段：
+**普通生成** (`_generate_script`) — 4阶段：
 
 ```
-Phase 1: 故事策划
+Phase 1: 故事策划 (progress 0→15%)
   └─ LLM生成完整故事大纲：角色、场景、道具、世界观、剧情线、伏笔、分集计划、核心悬念
+  完成后设置 script title → 前端即刻显示真实剧本名
 
-Phase 2: 知识库初始化
+Phase 2: 知识库初始化 (progress 15→20%)
   └─ 将角色/场景/道具/规则/伏笔写入知识库文件系统
 
-Phase 3: 逐集生成
+Phase 3: 逐集生成 (progress 20→95%)
   └─ 每集：加载知识库上下文 → LLM生成分镜脚本 → 保存 → 提取新实体更新知识库
 
-Phase 4: 输出整合
-  └─ 组装完整剧本对象（角色 + 场景 + 道具 + 每集分镜）
+Phase 4: 输出整合 (progress 95→100%)
+  └─ 组装完整剧本对象 → 保存磁盘缓存 → 服务重启不丢失
 ```
 
 #### 2. 知识库架构 (`knowledge_base.py`)
@@ -170,21 +171,69 @@ knowledge_base/{project_id}/
 - 世界观规则
 - 上一集概要 + 悬念
 
-#### 3. 超长小说智能改编
+#### 3. 小说智能改编 — 完整流程
 
-对超过5万字或20章的小说，采用分层处理策略，避免将全量文本塞入上下文：
+小说上传后异步生成，支持轮询进度（同 `/generate` 模式）。优化后的流程：
 
 ```
-输入小说（最高支持1000万字）
+前端 NovelUploadPage
+  │  POST /api/scripts/upload-novel (文件 + 题材 + 集数 + 风格)
+  │  ← {task_id, status: "generating"}
+  │  跳转到 /generate/{task_id} 进度页
   │
-  ├─ 分批摘要：每5章一批，每章截取3000字 → LLM生成摘要 + 提取钩子
-  │   └─ 返回：chapter_summaries[] + chapter_hooks[]
+后端 start_novel_adaptation()
+  │  创建 _active_tasks[task_id]，启动后台异步任务
   │
-  ├─ 关键章节提取：首尾各2章 + 25%/50%/75%高潮点 + 集边界章 → 全文保留（每章2000字，总计≤15000字）
-  │
-  └─ 故事策划：摘要索引 + 关键章节全文 + 原著钩子索引 → LLM生成完整策划
-      └─ 逐集生成：仅注入该集范围内的章节摘要和钩子
+  └─ _adapt_novel_async()
+       │  成功 → 设置 task.script + disk cache
+       │  失败 → task.status = "failed"
+       │
+       └─ adapt_novel(task_id=...) 带进度回调:
+            │
+            ├─ [5%] _split_chapters()
+            │   └─ 正则拆分章节（中文数字/阿拉伯数字/Chapter标记等）
+            │
+            ├─ [5%] 章节摘要 + 钩子提取
+            │   └─ 阈值: >1万字 或 >5章 → 走 LLM 批量摘要
+            │       每批5章，每章提取摘要 + 0-3个钩子
+            │       短篇直接取前300字作为摘要
+            │
+            ├─ 构建小说上下文
+            │   ├─ 全部章节摘要
+            │   ├─ 原著钩子索引（hook/cliffhanger/foreshadowing等7种）
+            │   └─ 关键章节原文（首尾+25%/50%/75%高潮点）
+            │
+            ├─ [10→20%] _adapt_story_plan() — 1次LLM
+            │   └─ STORY_PLANNER_PROMPT 直接生成完整策划
+            │       (合并了原来的 overview + story_plan 两步)
+            │
+            ├─ [20%] _enhance_asset_designs() — 条件执行
+            │   └─ 若 story_plan 已有 three_view_prompt + scene_prompt
+            │      → 跳过（省 N+M 次 LLM 调用）
+            │      否则逐个角色/场景生成设计卡
+            │
+            ├─ [20%] 知识库初始化
+            │   └─ 角色/场景/道具/规则/伏笔写入 KnowledgeBase
+            │
+            ├─ [20→95%] 并行 Episode 生成 — asyncio.gather
+            │   │  每集上下文:
+            │   │  ├─ KB 角色/场景/道具/规则/伏笔/前集概要
+            │   │  ├─ 本集对应的原著章节摘要
+            │   │  └─ 本集对应的原著钩子（必须保留）
+            │   │  截断: 所有上下文附加完成后才截断到6000字
+            │   └─ 8个 episode 同时生成（速度提升 ~8×）
+            │
+            ├─ [95%] 组装最终剧本
+            │   └─ 按集号排序 → KB 顺序保存 → 提取实体
+            │
+            └─ [100%] task.script 设置 + 磁盘缓存持久化
 ```
+
+**优化效果**（相比原始版本）：
+- LLM 调用: ~15次 → ~9次（-40%）
+- 生成速度: 串行 → 并行（~8×）
+- 章节采样阈值: 5万字/20章 → 1万字/5章（中短篇更智能）
+- 前端: 同 `/generate` 进度轮询模式（无需特殊适配）
 
 #### 4. 原著钩子提取
 
@@ -297,7 +346,7 @@ TaskDB: id, task_type, status, progress, result, error, created_at
 | `/api/scripts/list` | GET | 剧本列表 |
 | `/api/scripts/qa` | POST | 剧本问答 |
 | `/api/scripts/rewrite` | POST | 剧本改写 |
-| `/api/scripts/upload-novel` | POST | 小说改编 |
+| `/api/scripts/upload-novel` | POST | 小说上传改编（异步，返回taskId轮询进度） |
 | `/api/trends` | GET | 获取热点列表 |
 | `/api/trends/analysis` | GET | 热点分析统计 |
 | `/api/trends/search` | GET | 搜索热点 |
@@ -313,7 +362,7 @@ TaskDB: id, task_type, status, progress, result, error, created_at
 | `/` | TrendsPage | 热点趋势 |
 | `/generate` | GeneratorPage | 生成剧本（步骤式表单） |
 | `/generate/:taskId` | GeneratorPage | 查看生成进度 |
-| `/novel` | NovelUploadPage | 小说改编 |
+| `/novel` | NovelUploadPage | 小说改编上传（上传后跳转进度页） |
 | `/scripts` | ScriptListPage | 我的剧本列表 |
 | `/scripts/:scriptId` | ScriptViewerPage | 剧本详情（分镜+钩子高亮） |
 | `/accounts` | AccountManagementPage | 账号管理（管理员） |
