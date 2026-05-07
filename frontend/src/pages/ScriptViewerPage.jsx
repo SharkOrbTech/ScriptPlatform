@@ -146,7 +146,7 @@ export default function ScriptViewerPage() {
         </div>
         <div className="flex gap-2">
           <button className="btn btn-secondary text-sm" onClick={() => setRewriteTarget({ target: 'overall', targetName: '' })}>
-            改写剧本
+            改写剧本 (Beta)
           </button>
           <button className="btn btn-secondary text-sm" onClick={handleCopyrightCheck} disabled={checkingCopyright}>
             {checkingCopyright ? '检测中...' : '版权检测 (Beta)'}
