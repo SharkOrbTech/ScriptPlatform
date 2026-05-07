@@ -476,6 +476,24 @@ function buildSimpleDocx(title, markdownContent) {
   return Packer.toBlob(doc)
 }
 
+function buildForeshadowingMarkdown(script) {
+  const lines = []
+  const fs = script.foreshadowing || []
+  if (fs.length === 0) return ''
+  lines.push('# 伏笔索引')
+  lines.push('')
+  for (const f of fs) {
+    const ep = f.episode || '?'
+    const payoff = f.payoff_episode || '?'
+    lines.push(`## ${f.setup}`)
+    lines.push(`- **埋设**: 第${ep}集`)
+    lines.push(`- **揭晓**: 第${payoff}集`)
+    if (f.payoff_description) lines.push(`- **揭晓方式**: ${f.payoff_description}`)
+    lines.push('')
+  }
+  return lines.join('\n')
+}
+
 // ============================================================
 // ZIP Export
 // ============================================================
@@ -498,6 +516,8 @@ export async function exportToZip(script, format = 'md') {
     if (scenesMd) root.file('场景设定.md', scenesMd)
     const propsMd = buildPropsMarkdown(script)
     if (propsMd) root.file('道具设定.md', propsMd)
+    const fsMd = buildForeshadowingMarkdown(script)
+    if (fsMd) root.file('伏笔索引.md', fsMd)
   } else {
     // All DOCX
     root.file('剧本概述.docx', await buildSimpleDocx(`${title} - 概述`, buildOverviewMarkdown(script)))
@@ -511,6 +531,8 @@ export async function exportToZip(script, format = 'md') {
     if (scenesMd) root.file('场景设定.docx', await buildSimpleDocx(`${title} - 场景`, scenesMd))
     const propsMd = buildPropsMarkdown(script)
     if (propsMd) root.file('道具设定.docx', await buildSimpleDocx(`${title} - 道具`, propsMd))
+    const fsMd2 = buildForeshadowingMarkdown(script)
+    if (fsMd2) root.file('伏笔索引.docx', await buildSimpleDocx(`${title} - 伏笔`, fsMd2))
   }
 
   const ext = format === 'md' ? 'Markdown' : 'Word'
