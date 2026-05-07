@@ -2031,22 +2031,23 @@ class ScriptGenerator:
         - Typographic markers (ALL CAPS, separator lines like ---, ***, ===)
         - Vocabulary shift from previous paragraph (word overlap ratio)
         """
-        if len(paragraphs) < 5:
+        if len(paragraphs) < 4:
             return []
 
         scores = []
         # Running average paragraph length
         avg_len = sum(len(p) for p in paragraphs) / max(len(paragraphs), 1)
 
-        for i in range(1, len(paragraphs)):  # skip first para
+        for i in range(0, len(paragraphs)):
             para = paragraphs[i]
-            prev = paragraphs[i - 1]
+            prev = paragraphs[i - 1] if i > 0 else ""
             score = 0.0
             reasons = []
 
             # 1. Short paragraph surrounded by long ones → likely title/heading
             para_len = len(para)
-            if para_len < avg_len * 0.4 and para_len < 80 and len(prev) > avg_len * 0.6:
+            prev_is_long = len(prev) > avg_len * 0.6 if prev else False
+            if para_len < avg_len * 0.4 and para_len < 80 and prev_is_long:
                 score += 3.0
                 reasons.append("short_title")
 
@@ -2054,7 +2055,7 @@ class ScriptGenerator:
             if re.match(r'^[A-Z\s]{5,}$', para) and len(para) > 5:
                 score += 2.0
                 reasons.append("all_caps")
-            if re.match(r'^[=\-*#]{3,}$', para):
+            if re.match(r'^[=\-*#]{3,}', para):
                 score += 1.5
                 reasons.append("separator")
 
@@ -2179,13 +2180,14 @@ class ScriptGenerator:
         if docx_chapters and len(docx_chapters) >= 3:
             return docx_chapters
 
-        # Regex patterns for explicit chapter markers
+        # Regex patterns for explicit chapter markers.
+        # Use [^\S\n]* (horizontal whitespace only) to avoid eating newlines.
         patterns = [
-            r'\n\s*第[一二三四五六七八九十百千\d]+[章回节卷集部]\s*',
-            r'\n\s*Chapter\s*\d+',
-            r'\n\s*【第[一二三四五六七八九十百千\d]+[章回节]】',
-            r'\n\s*[=]{3,}\s*\n',
-            r'\n\s*[-]{3,}\s*\n',
+            r'\n[^\S\n]*第[一二三四五六七八九十百千\d]+[章回节卷集部][^\S\n]*',
+            r'\n[^\S\n]*Chapter\s*\d+[^\S\n]*',
+            r'\n[^\S\n]*【第[一二三四五六七八九十百千\d]+[章回节]】[^\S\n]*',
+            r'\n[^\S\n]*[=]{3,}[^\S\n]*\n',
+            r'\n[^\S\n]*[-]{3,}[^\S\n]*\n',
         ]
 
         for pattern in patterns:
