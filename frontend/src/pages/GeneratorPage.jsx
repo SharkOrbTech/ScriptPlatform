@@ -163,7 +163,7 @@ export default function GeneratorPage() {
     setForm(prev => ({
       ...prev,
       topic: topic.title,
-      trend_context: `热点灵感来源（仅供创意参考，请勿直接复制）:\n题材类型: ${tags.slice(0, 3).join('、')}\n热门元素: ${topic.description || topic.title}\n该热点的核心吸引力在于其题材设定和情感共鸣点`,
+      trend_context: `热点灵感来源（仅供创意参考，请勿直接复制，人名必须全部原创，不得与热点中任何角色同名）:\n题材类型: ${tags.slice(0, 3).join('、')}\n热门元素: ${topic.description || topic.title}\n该热点的核心吸引力在于其题材设定和情感共鸣点`,
     }))
     // Load topic-specific genres + auto-select audience and style
     api.getConfigForTopic(topic.title).then((data) => {
