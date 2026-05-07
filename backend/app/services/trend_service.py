@@ -365,7 +365,14 @@ class TrendService:
                     if tag not in style_tags:
                         style_tags.append(tag)
 
-        if not style_tags:
+        # Always include a baseline set of styles to avoid overly narrow results
+        if style_tags:
+            # Merge extracted tags with default styles, deduplicate
+            default_styles = ["古风", "现代都市", "赛博朋克", "日漫", "韩漫", "写实", "国潮"]
+            for s in default_styles:
+                if s not in style_tags:
+                    style_tags.append(s)
+        else:
             style_tags = ["古风", "现代都市", "赛博朋克", "日漫", "韩漫", "写实", "国潮"]
 
         # Infer suggested audience from genre tags

@@ -658,16 +658,11 @@ export default function GeneratorPage() {
             <p className="text-sm text-ink-600 font-medium">
               {status?.current_phase || '正在初始化AI引擎...'}
             </p>
-            {status?.current_episode > 0 && (
-              <p className="text-xs text-ink-400 mt-1">
-                正在创作第 {status.current_episode}/{status.total_episodes} 集
-              </p>
-            )}
           </div>
 
           {/* Phase Stepper */}
           <div className="mb-6 max-w-lg mx-auto">
-            <div className="grid grid-cols-4 gap-0">
+            <div className="flex justify-between items-center">
               {[
                 { key: 'plan', label: '策划' },
                 { key: 'character', label: '角色' },

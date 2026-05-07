@@ -58,10 +58,21 @@ def _load_disk_cache():
 def _save_disk_cache():
     try:
         SCRIPTS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        data = {"scripts": _script_store, "saved_at": datetime.now().isoformat()}
+        # Convert datetime objects to ISO format strings for JSON serialization
+        serializable_store = {}
+        for k, v in _script_store.items():
+            item = dict(v)
+            if 'created_at' in item and hasattr(item['created_at'], 'isoformat'):
+                item['created_at'] = item['created_at'].isoformat()
+            serializable_store[k] = item
+        data = {"scripts": serializable_store, "saved_at": datetime.now().isoformat()}
         SCRIPTS_CACHE_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
     except Exception as e:
         logger.warning(f"Failed to save scripts disk cache: {e}")
+
+
+# Expose save function to script_generator module
+save_script_to_disk_cache = _save_disk_cache
 
 
 _load_disk_cache()

@@ -1005,6 +1005,14 @@ class ScriptGenerator:
             # Store completed script persistently so it's available even if abandoned by polling
             self._completed_scripts[task_id] = script.model_dump()
 
+            # Persist to disk cache immediately upon completion
+            try:
+                from app.api.scripts import save_script_to_disk_cache, _script_store
+                _script_store[task_id] = script.model_dump()
+                save_script_to_disk_cache()
+            except Exception as e:
+                logger.warning(f"Failed to persist script {task_id} to disk cache: {e}")
+
         except Exception as e:
             logger.error(f"Script generation failed: {e}", exc_info=True)
             self._active_tasks[task_id].status = "failed"
