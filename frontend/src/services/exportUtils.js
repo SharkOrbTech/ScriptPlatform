@@ -452,35 +452,52 @@ function buildSimpleDocx(title, markdownContent) {
 // ZIP Export
 // ============================================================
 
-export async function exportToZip(script) {
+export async function exportToZip(script, format = 'md') {
   const zip = new JSZip()
   const title = script.title || '剧本'
   const root = zip.folder(title)
 
-  // Overview and characters (MD + DOCX)
-  root.file('剧本概述.md', buildOverviewMarkdown(script))
-  root.file('角色设定.md', buildCharactersMarkdown(script))
-  const overviewDocx = await buildSimpleDocx(`${title} - 概述`, buildOverviewMarkdown(script))
-  root.file('剧本概述.docx', overviewDocx)
-  const charsDocx = await buildSimpleDocx(`${title} - 角色`, buildCharactersMarkdown(script))
-  root.file('角色设定.docx', charsDocx)
-
-  // Per-episode files
-  const epsFolder = root.folder('分集剧本')
-  for (const ep of (script.episodes || [])) {
-    const epLabel = `第${ep.episode_number}集`
-    const epMd = buildEpisodeMarkdown(script, ep)
-    epsFolder.file(`${epLabel}.md`, epMd)
-    const epDocx = await buildSimpleDocx(`${title} - ${epLabel}`, epMd)
-    epsFolder.file(`${epLabel}.docx`, epDocx)
+  if (format === 'md') {
+    // All Markdown
+    root.file('剧本概述.md', buildOverviewMarkdown(script))
+    root.file('角色设定.md', buildCharactersMarkdown(script))
+    const epsFolder = root.folder('分集剧本')
+    for (const ep of (script.episodes || [])) {
+      const epLabel = `第${ep.episode_number}集`
+      epsFolder.file(`${epLabel}.md`, buildEpisodeMarkdown(script, ep))
+    }
+    const scenesMd = buildScenesMarkdown(script)
+    if (scenesMd) root.file('场景设定.md', scenesMd)
+    const propsMd = buildPropsMarkdown(script)
+    if (propsMd) root.file('道具设定.md', propsMd)
+  } else {
+    // All DOCX
+    root.file('剧本概述.docx', await buildSimpleDocx(`${title} - 概述`, buildOverviewMarkdown(script)))
+    root.file('角色设定.docx', await buildSimpleDocx(`${title} - 角色`, buildCharactersMarkdown(script)))
+    const epsFolder = root.folder('分集剧本')
+    for (const ep of (script.episodes || [])) {
+      const epLabel = `第${ep.episode_number}集`
+      epsFolder.file(`${epLabel}.docx`, await buildSimpleDocx(`${title} - ${epLabel}`, buildEpisodeMarkdown(script, ep)))
+    }
+    const scenesMd = buildScenesMarkdown(script)
+    if (scenesMd) root.file('场景设定.docx', await buildSimpleDocx(`${title} - 场景`, scenesMd))
+    const propsMd = buildPropsMarkdown(script)
+    if (propsMd) root.file('道具设定.docx', await buildSimpleDocx(`${title} - 道具`, propsMd))
   }
 
-  // Scenes and props
-  const scenesMd = buildScenesMarkdown(script)
-  if (scenesMd) root.file('场景设定.md', scenesMd)
-  const propsMd = buildPropsMarkdown(script)
-  if (propsMd) root.file('道具设定.md', propsMd)
-
+  const ext = format === 'md' ? 'Markdown' : 'Word'
   const zipBlob = await zip.generateAsync({ type: 'blob' })
-  saveAs(zipBlob, `${title}.zip`)
+  saveAs(zipBlob, `${title}_${ext}.zip`)
+}
+
+// Single-file merged export
+export async function exportMergedMarkdown(script) {
+  const md = buildMarkdown(script)
+  const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${script.title || '剧本'}.md`
+  a.click()
+  URL.revokeObjectURL(url)
 }

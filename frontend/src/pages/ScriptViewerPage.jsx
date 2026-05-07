@@ -155,11 +155,11 @@ export default function ScriptViewerPage() {
             <button className="btn btn-ghost text-sm" onClick={(e) => { e.stopPropagation(); setShowExportMenu(!showExportMenu) }}>导出</button>
             {showExportMenu && (
               <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-ink-100 py-1 z-50">
-                <button className="w-full text-left px-4 py-2 text-sm text-ink-700 hover:bg-ink-50" onClick={() => { exportToZip(script); setShowExportMenu(false) }}>
-                  导出压缩包 (ZIP)
+                <button className="w-full text-left px-4 py-2 text-sm text-ink-700 hover:bg-ink-50" onClick={() => { exportToZip(script, 'md'); setShowExportMenu(false) }}>
+                  打包导出 (Markdown)
                 </button>
-                <button className="w-full text-left px-4 py-2 text-sm text-ink-700 hover:bg-ink-50" onClick={() => { window.print(); setShowExportMenu(false) }}>
-                  打印
+                <button className="w-full text-left px-4 py-2 text-sm text-ink-700 hover:bg-ink-50" onClick={() => { exportToZip(script, 'docx'); setShowExportMenu(false) }}>
+                  打包导出 (Word)
                 </button>
               </div>
             )}
