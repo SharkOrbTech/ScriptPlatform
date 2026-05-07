@@ -225,7 +225,7 @@ D. 认知反转：观众有上帝视角但剧中人不知
       "arc": "角色成长弧线",
       "relationships": {"角色名": "关系描述"},
       "background_story": "角色背景故事（50-100字）",
-      "three_view_prompt": "三视图AI绘图提示词（正面、侧面、背面，包含完整外貌服装描述）",
+      "three_view_prompt": "三视图AI绘图提示词（正面、侧面、背面三个视角放在同一张白底图片上，包含完整外貌服装描述）",
       "portrait_prompt": "特写肖像AI绘图提示词",
       "expression_prompts": {
         "happy": "开心表情提示词",
@@ -656,7 +656,7 @@ CHARACTER_DESIGN_PROMPT = """你是一个AI漫剧角色设计专家，精通角�
   }},
   "three_view": {{
     "description": "三视图整体描述",
-    "front_view": "三视图 — 正面：全身提示词（风格+人物完整外貌+服装细节+姿态+光影+质量词+负面提示词）",
+    "front_view": "三视图 — 正面：全身提示词（白底，三视角同一张图。风格+人物完整外貌+服装细节+姿态+光影+质量词+负面提示词）",
     "side_view": "三视图 — 侧面：全身提示词",
     "back_view": "三视图 — 背面：全身提示词"
   }},
@@ -775,7 +775,7 @@ NOVEL_ADAPTATION_PROMPT = """你是一个专业的小说改编剧本专家，擅
       "arc": "角色成长弧线",
       "relationships": {{}},
       "background_story": "角色背景故事",
-      "three_view_prompt": "三视图AI绘图提示词（正面、侧面、背面，包含完整外貌服装描述）",
+      "three_view_prompt": "三视图AI绘图提示词（正面、侧面、背面三个视角放在同一张白底图片上，包含完整外貌服装描述）",
       "portrait_prompt": "特写肖像AI绘图提示词",
       "expression_prompts": {{
         "happy": "开心表情提示词",

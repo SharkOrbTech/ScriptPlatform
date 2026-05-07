@@ -149,7 +149,7 @@ export default function ScriptViewerPage() {
             改写剧本
           </button>
           <button className="btn btn-secondary text-sm" onClick={handleCopyrightCheck} disabled={checkingCopyright}>
-            {checkingCopyright ? '检测中...' : '版权检测'}
+            {checkingCopyright ? '检测中...' : '版权检测 (Beta)'}
           </button>
           <div className="relative">
             <button className="btn btn-ghost text-sm" onClick={(e) => { e.stopPropagation(); setShowExportMenu(!showExportMenu) }}>导出</button>

@@ -45,7 +45,7 @@ export default function TrendsPage() {
   const sources = [
     { key: 'all', label: '全部' },
     { key: 'hongguo', label: '红果短剧' },
-    { key: 'tomato', label: '番茄小说' },
+    { key: 'tomato', label: '番茄小说 (Beta)' },
   ]
 
   return (
