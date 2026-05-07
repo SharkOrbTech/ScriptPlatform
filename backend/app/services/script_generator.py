@@ -985,6 +985,7 @@ class ScriptGenerator:
                 emotional_tone=story_plan.get("emotional_tone", ""),
                 target_audience=request.target_audience,
                 style=request.style,
+                foreshadowing=story_plan.get("foreshadowing", []),
             )
 
             self._active_tasks[task_id].script = script
@@ -1435,6 +1436,7 @@ class ScriptGenerator:
                 theme=result.get("theme", ""),
                 emotional_tone=result.get("emotional_tone", ""),
                 style=result.get("style", style),
+                foreshadowing=result.get("foreshadowing", []),
             )
             self._active_tasks[task_id].status = "completed"
             self._active_tasks[task_id].progress = 100.0
@@ -1684,6 +1686,7 @@ class ScriptGenerator:
             "scenes": enhanced_plan.get("scenes", []),
             "props": enhanced_plan.get("props", []),
             "world_rules": enhanced_plan.get("world_rules", []),
+            "foreshadowing": enhanced_plan.get("foreshadowing", []),
             "episodes": episodes,
         }
         logger.info(f"Novel adaptation complete: {result['title']} with {len(episodes)} episodes")

@@ -99,6 +99,7 @@ class Script(BaseModel):
     emotional_tone: str = ""
     target_audience: str = ""
     style: str = ""
+    foreshadowing: list[dict] = []
     created_at: datetime = Field(default_factory=datetime.now)
     copyright_risk: Optional["CopyrightResult"] = None
 
