@@ -1357,7 +1357,7 @@ class ScriptGenerator:
 
         return {}
 
-    async def _call_and_extract_json(self, messages: list[dict], temperature: float = 0.8, max_tokens: int = 8192, max_retries: int = 20) -> dict:
+    async def _call_and_extract_json(self, messages: list[dict], temperature: float = 0.8, max_tokens: int = 8192, max_retries: int = 5) -> dict:
         """Call LLM and extract JSON, retrying if parsing fails."""
         last_response = ""
         for attempt in range(max_retries + 1):
@@ -1409,7 +1409,18 @@ class ScriptGenerator:
                 genre=result.get("genre", ""),
                 logline=result.get("logline", ""),
                 synopsis=result.get("synopsis", ""),
-                characters=[Character(**c) for c in result.get("characters", [])],
+                characters=[Character(
+                    name=str(c.get("name", "") or ""),
+                    age=str(c.get("age", "") or ""),
+                    identity=str(c.get("identity", "") or ""),
+                    personality=str(c.get("personality", "") or ""),
+                    appearance=str(c.get("appearance", "") or ""),
+                    clothing=str(c.get("clothing", "") or ""),
+                    signature_element=str(c.get("signature_element", "") or ""),
+                    arc=str(c.get("arc", "") or ""),
+                    relationships=c.get("relationships", {}) if isinstance(c.get("relationships"), dict) else {},
+                    three_view_prompt=str(c.get("three_view_prompt", "") or ""),
+                ) for c in result.get("characters", [])],
                 episodes=[Episode(**e) for e in result.get("episodes", [])],
                 scenes=result.get("scenes", []),
                 props=result.get("props", []),
