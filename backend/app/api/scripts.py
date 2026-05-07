@@ -44,13 +44,44 @@ SCRIPTS_CACHE_FILE = SCRIPTS_CACHE_DIR / "scripts_cache.json"
 _script_store: dict[str, dict] = {}
 
 
+def _repair_foreshadowing(script: dict):
+    """Extract foreshadowing index from episode shots for old scripts that lack it."""
+    if script.get("foreshadowing"):
+        return  # already has the field
+    episodes = script.get("episodes", [])
+    if not episodes:
+        return
+    items = []
+    seen = set()
+    for ep in episodes:
+        for shot in ep.get("shots", []):
+            if shot.get("hook_type") == "foreshadowing" and shot.get("hook_detail"):
+                detail = shot["hook_detail"]
+                if detail not in seen:
+                    seen.add(detail)
+                    items.append({
+                        "setup": detail,
+                        "episode": ep.get("episode_number", 0),
+                        "payoff_episode": 0,
+                        "payoff_description": "",
+                    })
+    if items:
+        script["foreshadowing"] = items
+
+
 def _load_disk_cache():
     try:
         if SCRIPTS_CACHE_FILE.exists():
             data = json.loads(SCRIPTS_CACHE_FILE.read_text(encoding='utf-8'))
             items = data.get("scripts", {})
+            repaired = 0
+            for s in items.values():
+                if not s.get("foreshadowing"):
+                    _repair_foreshadowing(s)
+                    if s.get("foreshadowing"):
+                        repaired += 1
             _script_store.update(items)
-            logger.info(f"Loaded {len(items)} scripts from disk cache")
+            logger.info(f"Loaded {len(items)} scripts from disk cache (repaired foreshadowing for {repaired})")
     except Exception as e:
         logger.warning(f"Failed to load scripts disk cache: {e}")
 
