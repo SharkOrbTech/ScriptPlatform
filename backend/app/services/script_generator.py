@@ -1451,22 +1451,38 @@ class ScriptGenerator:
         chapter_summaries = []
         chapter_hooks = []
         if total_chars > 10000 or len(chapters) > 5:
-            logger.info(f"Batch-summarizing {len(chapters)} chapters and extracting hooks...")
-            chapter_summaries, chapter_hooks = await self._batch_summarize_and_extract_hooks(chapters)
+            # Adaptive batch size: keep total LLM calls reasonable (<~20 batches)
+            total_ch = len(chapters)
+            if total_ch <= 30:
+                batch_size = 5
+            elif total_ch <= 80:
+                batch_size = 8
+            else:
+                batch_size = max(10, total_ch // 15)  # cap at ~15 batches for very long novels
+            logger.info(f"Batch-summarizing {total_ch} chapters (batch_size={batch_size})...")
+            chapter_summaries, chapter_hooks = await self._batch_summarize_and_extract_hooks(chapters, batch_size=batch_size)
             logger.info(f"Summarized {len(chapter_summaries)} chapters, extracted {len(chapter_hooks)} hooks")
         else:
             for i, ch in enumerate(chapters):
                 chapter_summaries.append(f"第{i+1}章: {ch[:300]}")
 
         # Build novel context from chapter summaries (unified format for all novel sizes)
+        # Cap summaries for the story plan to avoid LLM context overflow
+        MAX_SUMMARIES_FOR_PLAN = 60
+        plan_summaries = chapter_summaries
+        if len(chapter_summaries) > MAX_SUMMARIES_FOR_PLAN:
+            step = max(1, len(chapter_summaries) // MAX_SUMMARIES_FOR_PLAN)
+            plan_summaries = chapter_summaries[::step][:MAX_SUMMARIES_FOR_PLAN]
+            logger.info(f"Chapter summaries for story plan capped: {len(chapter_summaries)} → {len(plan_summaries)}")
+
         novel_context = f"""【原著改编信息】
 题材: {genre}
 风格: {style}
 总字数: {total_chars}
 总章数: {len(chapters)}
 
-【全部章节摘要】
-{chr(10).join(chapter_summaries)}"""
+【章节摘要】（共{len(chapter_summaries)}章，展示{len(plan_summaries)}章）
+{chr(10).join(plan_summaries)}"""
 
         # Append hook index
         if chapter_hooks:
@@ -1531,13 +1547,42 @@ class ScriptGenerator:
 
             # Append chapter summaries for this episode's range
             if chapter_summaries:
-                ch_start = int((ep_num - 1) * ch_per_ep)
-                ch_end = int(ep_num * ch_per_ep)
-                ep_chapter_summaries = chapter_summaries[ch_start:ch_end]
-                if ep_chapter_summaries:
-                    context += f"\n\n## 本集对应原著章节\n{chr(10).join(ep_chapter_summaries)}"
+                total_ch = len(chapters)
+                if ch_per_ep < 1:
+                    # Short novel → many episodes: all chapters map to every episode.
+                    # Give each episode ALL chapter summaries (there are few) so the
+                    # LLM can draw from the full source material.
+                    ep_chapter_summaries = chapter_summaries
+                    ep_chapter_label = "原著全部章节"
+                elif ch_per_ep > len(chapter_summaries) / 2:
+                    # Long novel → few episodes: too many chapters per episode.
+                    # Select evenly distributed key chapters instead of a huge range
+                    # that would be immediately truncated.
+                    total_summaries = len(chapter_summaries)
+                    max_per_ep = min(15, total_summaries)
+                    step = max(1, total_summaries // max_per_ep)
+                    start_idx = min((ep_num - 1) * step, total_summaries - 1)
+                    ep_chapter_summaries = chapter_summaries[start_idx::step][:max_per_ep]
+                    ep_chapter_label = f"原著关键章节（共{total_summaries}章，采样{len(ep_chapter_summaries)}章）"
+                else:
+                    ch_start = int((ep_num - 1) * ch_per_ep)
+                    ch_end = int(ep_num * ch_per_ep)
+                    ep_chapter_summaries = chapter_summaries[ch_start:ch_end]
+                    ep_chapter_label = "本集对应原著章节"
 
-                ep_hooks = [h for h in chapter_hooks if ch_start < h["chapter"] <= ch_end]
+                if ep_chapter_summaries:
+                    context += f"\n\n## {ep_chapter_label}\n{chr(10).join(ep_chapter_summaries)}"
+
+                # Hooks: for short→many, all hooks; for long→few, sampled; normal: range-based
+                if ch_per_ep < 1:
+                    ep_hooks = chapter_hooks
+                elif ch_per_ep > len(chapter_summaries) / 2:
+                    ep_hooks = chapter_hooks[start_idx::step][:max_per_ep * 3]
+                else:
+                    ch_start = int((ep_num - 1) * ch_per_ep)
+                    ch_end = int(ep_num * ch_per_ep)
+                    ep_hooks = [h for h in chapter_hooks if ch_start < h["chapter"] <= ch_end]
+
                 if ep_hooks:
                     type_labels_inner = {
                         "hook": "开头爆点", "cliffhanger": "章末悬念", "foreshadowing": "伏笔",
@@ -1545,7 +1590,7 @@ class ScriptGenerator:
                         "revelation": "真相揭露", "conflict": "冲突爆发",
                     }
                     hooks_lines = []
-                    for h in ep_hooks:
+                    for h in ep_hooks[:20]:
                         label = type_labels_inner.get(h["type"], h["type"])
                         hooks_lines.append(f"- {label}: {h['description']}")
                     context += f"\n\n## 本集必须包含的原著钩子\n{chr(10).join(hooks_lines)}"
@@ -1609,10 +1654,21 @@ class ScriptGenerator:
         return result
 
     async def _batch_summarize_and_extract_hooks(self, chapters: list[str], batch_size: int = 5) -> tuple[list[str], list[dict]]:
-        """Summarize chapters and extract hooks in batches. Returns (summaries, hooks)."""
+        """Summarize chapters and extract hooks in batches. Returns (summaries, hooks).
+
+        For extremely long novels (>150 chapters), samples evenly to cap LLM calls.
+        """
         all_summaries = []
         all_hooks = []
         total = len(chapters)
+
+        # Cap: for 150+ chapters, sample evenly instead of summarizing everything
+        MAX_BATCHES = 20
+        if total // batch_size > MAX_BATCHES:
+            step = max(1, total // (MAX_BATCHES * batch_size))
+            chapters = chapters[::step]
+            logger.info(f"Very long novel ({total} chapters): sampled to {len(chapters)} before batch summary")
+            total = len(chapters)
 
         for batch_start in range(0, total, batch_size):
             batch_end = min(batch_start + batch_size, total)
