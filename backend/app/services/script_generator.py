@@ -1378,133 +1378,91 @@ class ScriptGenerator:
         return {}
 
     async def adapt_novel(self, novel_content: str, episode_count: int = 8, genre: str = "重生", style: str = "古风") -> dict:
-        """Convert a novel into a drama script with multi-phase processing.
+        """Convert a novel into a drama script — optimized pipeline.
 
-        Multi-phase pipeline:
-        1. Split novel into chapters, extract overview
-        2. For long novels: batch-summarize all chapters via LLM
-        3. Generate story plan (characters, scenes, props, world rules) via LLM
-        4. Generate detailed character/scene/prop design cards via LLM
-        5. Generate per-episode full storyboards via LLM with knowledge base context
-        6. Assemble final result
+        Optimizations over the original:
+        1. Merged overview extraction into story plan (saves 1 LLM call)
+        2. Lowered batch-summary threshold (5+ ch / 10k+ chars → all novels get summaries)
+        3. Skip _enhance_asset_designs when story plan already has complete prompts
+        4. Parallel episode generation via asyncio.gather
+        5. KB context truncation after all sections appended (prevents overflow)
+        6. Single context format for all novel sizes
         """
-        # Phase 1: Split novel into chapters and extract overview
         chapters = self._split_chapters(novel_content)
         total_chars = len(novel_content)
         logger.info(f"Novel split into {len(chapters)} chapters, total {total_chars} chars")
 
-        overview_text = "\n\n".join(chapters[:5])[:8000]
-        overview = await self._extract_novel_overview(overview_text, genre, style)
-        logger.info(f"Novel overview extracted: {overview.get('title', 'unknown')}")
-
-        # Phase 1.5: For long novels, batch-summarize chapters and extract hooks
+        # Phase 1: Summarize all chapters (lower threshold → better coverage)
         chapter_summaries = []
         chapter_hooks = []
-        if total_chars > 50000 or len(chapters) > 20:
-            logger.info(f"Long novel detected ({total_chars} chars, {len(chapters)} chapters), batch-summarizing and extracting hooks...")
+        if total_chars > 10000 or len(chapters) > 5:
+            logger.info(f"Batch-summarizing {len(chapters)} chapters and extracting hooks...")
             chapter_summaries, chapter_hooks = await self._batch_summarize_and_extract_hooks(chapters)
             logger.info(f"Summarized {len(chapter_summaries)} chapters, extracted {len(chapter_hooks)} hooks")
-        elif len(chapters) > 10:
-            # Medium novel: sample key chapters
-            sample_indices = list(range(min(5, len(chapters))))
-            mid = len(chapters) // 2
-            sample_indices.extend([mid - 1, mid, mid + 1])
-            sample_indices.extend(range(max(0, len(chapters) - 3), len(chapters)))
-            sample_indices = sorted(set(i for i in sample_indices if 0 <= i < len(chapters)))
-            for idx in sample_indices:
-                summary = chapters[idx][:1000]
-                chapter_summaries.append(f"第{idx+1}章摘要: {summary}")
+        else:
+            for i, ch in enumerate(chapters):
+                chapter_summaries.append(f"第{i+1}章: {ch[:300]}")
 
-        # Build novel context for story planning
-        if chapter_summaries:
-            # Long novel: use chapter summaries + key chapter full text
-            key_chapters_text = self._get_key_chapters_text(chapters, episode_count)
-            novel_context = f"""【小说基本信息】
-标题: {overview.get('title', '未知')}
+        # Build novel context from chapter summaries (unified format for all novel sizes)
+        novel_context = f"""【原著改编信息】
 题材: {genre}
 风格: {style}
 总字数: {total_chars}
 总章数: {len(chapters)}
-主要角色: {', '.join(overview.get('main_characters', []))}
-核心冲突: {overview.get('core_conflict', '')}
-故事梗概: {overview.get('synopsis', '')}
 
 【全部章节摘要】
-{chr(10).join(chapter_summaries)}
+{chr(10).join(chapter_summaries)}"""
 
-【关键章节原文】
-{key_chapters_text}
-"""
-            # Add hook index to context
-            if chapter_hooks:
-                type_labels = {
-                    "hook": "开头爆点", "cliffhanger": "章末悬念", "foreshadowing": "伏笔",
-                    "turning_point": "情节转折", "emotional_peak": "情感高潮",
-                    "revelation": "真相揭露", "conflict": "冲突爆发",
-                }
-                pos_labels = {"start": "开头", "middle": "中段", "end": "末尾"}
-                hooks_lines = []
-                for h in chapter_hooks:
-                    label = type_labels.get(h["type"], h["type"])
-                    pos = pos_labels.get(h["position"], h["position"])
-                    hooks_lines.append(f"第{h['chapter']}章({pos}): {label} - {h['description']}")
-                novel_context += f"""
+        # Append hook index
+        if chapter_hooks:
+            type_labels = {
+                "hook": "开头爆点", "cliffhanger": "章末悬念", "foreshadowing": "伏笔",
+                "turning_point": "情节转折", "emotional_peak": "情感高潮",
+                "revelation": "真相揭露", "conflict": "冲突爆发",
+            }
+            hooks_lines = []
+            for h in chapter_hooks:
+                label = type_labels.get(h["type"], h["type"])
+                hooks_lines.append(f"第{h['chapter']}章: {label} - {h['description']}")
+            novel_context += f"\n\n【原著钩子索引】（改编时必须保留这些关键钩子）\n{chr(10).join(hooks_lines)}"
 
-【原著钩子索引】（改编时必须保留这些关键钩子，用于设置集末悬念和开头爆点）
-{chr(10).join(hooks_lines)}
-"""
-        else:
-            # Short novel: use condensed full text
-            if len(chapters) <= episode_count * 2:
-                condensed = novel_content[:20000]
-            else:
-                chapters_per_ep = len(chapters) / episode_count
-                selected = []
-                for ep in range(episode_count):
-                    start_idx = int(ep * chapters_per_ep)
-                    end_idx = int((ep + 1) * chapters_per_ep)
-                    if start_idx < len(chapters):
-                        selected.append(chapters[start_idx][:1500])
-                    if end_idx - 1 > start_idx and end_idx - 1 < len(chapters):
-                        selected.append(chapters[end_idx - 1][:1500])
-                condensed = "\n\n[分隔]\n\n".join(selected)[:20000]
+        # Append key chapter excerpts for richer detail
+        key_chapters_text = self._get_key_chapters_text(chapters, episode_count)
+        if key_chapters_text:
+            novel_context += f"\n\n【关键章节原文】\n{key_chapters_text}"
 
-            novel_context = f"""【小说基本信息】
-标题: {overview.get('title', '未知')}
-题材: {genre}
-风格: {style}
-主要角色: {', '.join(overview.get('main_characters', []))}
-核心冲突: {overview.get('core_conflict', '')}
-故事梗概: {overview.get('synopsis', '')}
-
-【原著关键章节】
-{condensed}
-"""
-            if chapter_summaries:
-                novel_context += f"\n\n【章节摘要】\n{chr(10).join(chapter_summaries[:15])}"
-
-        # Phase 2: Generate story plan (characters, scenes, props, world rules)
-        logger.info("Phase 2: Generating story plan from novel...")
+        # Phase 2: Generate story plan (merged overview + plan in one LLM call)
+        logger.info("Generating story plan from novel...")
         story_plan = await self._adapt_story_plan(novel_context, genre, style, episode_count)
         if not story_plan:
             logger.error("Story plan generation failed, falling back to single-shot adaptation")
             return await self._adapt_novel_single_shot(novel_context)
 
-        # Phase 3: Enhance character/scene/prop designs with detailed AI prompts
-        logger.info("Phase 3: Generating detailed asset designs...")
-        enhanced_plan = await self._enhance_asset_designs(story_plan)
+        # Phase 3: Skip asset enhancement if story plan already has complete prompts
+        chars = story_plan.get("characters", [])
+        scenes = story_plan.get("scenes", [])
+        chars_complete = len(chars) > 0 and all(
+            c.get("three_view_prompt") and c.get("portrait_prompt") for c in chars
+        )
+        scenes_complete = len(scenes) > 0 and all(
+            s.get("scene_prompt") for s in scenes
+        )
+        if chars_complete and scenes_complete:
+            logger.info("Story plan already has complete asset prompts, skipping asset enhancement")
+            enhanced_plan = story_plan
+        else:
+            logger.info("Enhancing incomplete asset designs...")
+            enhanced_plan = await self._enhance_asset_designs(story_plan)
 
-        # Phase 4: Generate per-episode storyboards using knowledge base
-        logger.info("Phase 4: Generating per-episode storyboards...")
+        # Phase 4: Initialize KnowledgeBase for cross-episode consistency
         kb = KnowledgeBase(f"novel_adapt_{uuid.uuid4().hex[:8]}")
         self._init_knowledge_base(kb, enhanced_plan)
-
-        # Build chapter-to-episode mapping for long novels
         ch_per_ep = len(chapters) / episode_count if episode_count > 0 else 1
 
-        episodes = []
-        for ep_num in range(1, episode_count + 1):
-            logger.info(f"Generating episode {ep_num}/{episode_count}...")
+        # Phase 5: Generate all episodes in parallel
+        logger.info(f"Generating {episode_count} episodes in parallel...")
+
+        async def generate_one(ep_num: int):
             ep_plan = {}
             ep_plans = enhanced_plan.get("episode_plan", [])
             if ep_num <= len(ep_plans):
@@ -1512,7 +1470,7 @@ class ScriptGenerator:
 
             context = kb.get_context_for_episode(ep_num)
 
-            # For long novels, add relevant chapter summaries and hooks to context
+            # Append chapter summaries for this episode's range
             if chapter_summaries:
                 ch_start = int((ep_num - 1) * ch_per_ep)
                 ch_end = int(ep_num * ch_per_ep)
@@ -1520,19 +1478,23 @@ class ScriptGenerator:
                 if ep_chapter_summaries:
                     context += f"\n\n## 本集对应原著章节\n{chr(10).join(ep_chapter_summaries)}"
 
-                # Add hooks for this episode's chapter range
                 ep_hooks = [h for h in chapter_hooks if ch_start < h["chapter"] <= ch_end]
                 if ep_hooks:
-                    type_labels = {
+                    type_labels_inner = {
                         "hook": "开头爆点", "cliffhanger": "章末悬念", "foreshadowing": "伏笔",
                         "turning_point": "情节转折", "emotional_peak": "情感高潮",
                         "revelation": "真相揭露", "conflict": "冲突爆发",
                     }
                     hooks_lines = []
                     for h in ep_hooks:
-                        label = type_labels.get(h["type"], h["type"])
+                        label = type_labels_inner.get(h["type"], h["type"])
                         hooks_lines.append(f"- {label}: {h['description']}")
                     context += f"\n\n## 本集必须包含的原著钩子\n{chr(10).join(hooks_lines)}"
+
+            # Truncate AFTER all context sections are appended
+            max_ctx = 6000
+            if len(context) > max_ctx:
+                context = context[:max_ctx] + "\n\n[上下文已截断...]"
 
             try:
                 episode = await self._generate_episode(
@@ -1547,24 +1509,33 @@ class ScriptGenerator:
                     ep_plan,
                     context,
                 )
+                return ep_num, episode, None
+            except Exception as e:
+                logger.error(f"Episode {ep_num} generation failed: {e}")
+                return ep_num, None, str(e)
+
+        results = await asyncio.gather(*[generate_one(n) for n in range(1, episode_count + 1)])
+
+        # Phase 6: Save episodes to KB sequentially and assemble
+        episodes = []
+        for ep_num, episode, error in sorted(results, key=lambda x: x[0]):
+            if episode:
                 episodes.append(episode.model_dump())
                 kb.save_episode(episode)
                 kb.extract_entities_from_episode(episode)
-            except Exception as e:
-                logger.error(f"Episode {ep_num} generation failed: {e}")
+            else:
                 episodes.append({
                     "episode_number": ep_num,
                     "title": f"第{ep_num}集",
-                    "summary": f"生成失败: {str(e)[:100]}",
+                    "summary": f"生成失败: {error[:100]}" if error else "生成失败",
                     "shots": [],
                 })
 
-        # Phase 5: Assemble final result
         result = {
-            "title": enhanced_plan.get("title", overview.get("title", "未命名剧本")),
+            "title": enhanced_plan.get("title", "未命名剧本"),
             "genre": genre,
             "logline": enhanced_plan.get("logline", ""),
-            "synopsis": enhanced_plan.get("synopsis", overview.get("synopsis", "")),
+            "synopsis": enhanced_plan.get("synopsis", ""),
             "theme": enhanced_plan.get("theme", ""),
             "emotional_tone": enhanced_plan.get("emotional_tone", ""),
             "characters": enhanced_plan.get("characters", []),
