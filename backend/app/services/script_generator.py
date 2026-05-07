@@ -1269,7 +1269,7 @@ class ScriptGenerator:
         return {}
 
     def _try_parse_json(self, text: str) -> dict:
-        """Try to parse JSON with common fixups."""
+        """Try to parse JSON with common fixups for LLM output quirks."""
         # Direct parse
         try:
             return json.loads(text)
@@ -1278,40 +1278,57 @@ class ScriptGenerator:
 
         # Fix common issues from LLM output
         fixed = text
-        # Remove single-line comments (must be before newline fix)
+        # Remove single-line comments
         fixed = re.sub(r'//.*?\n', '\n', fixed)
         # Remove trailing commas before } or ]
         fixed = re.sub(r',\s*([\]}])', r'\1', fixed)
-        # Fix unescaped newlines inside JSON strings
-        # Replace literal newlines between structural JSON characters with spaces
-        fixed = re.sub(r'(?<=[^\n])\n(?=[^{}\[\]"\s])', ' ', fixed)
-        # Escape literal newlines/tabs that remain inside string values
+
+        # Fix unescaped backslashes inside JSON strings (common LLM error)
+        # Only fix \ that are NOT already part of a valid escape sequence
+        # Valid escapes: \\, \", \/, \b, \f, \n, \r, \t, \uXXXX
         result = []
         in_str = False
         esc = False
-        for ch in fixed:
+        i = 0
+        while i < len(fixed):
+            ch = fixed[i]
             if esc:
                 result.append(ch)
                 esc = False
+                i += 1
                 continue
             if ch == '\\' and in_str:
-                result.append(ch)
-                esc = True
-                continue
-            if ch == '"':
+                # Check if next char forms a valid escape
+                if i + 1 < len(fixed) and fixed[i + 1] in '"\\/bfnrtu':
+                    result.append(ch)  # valid escape, keep as-is
+                else:
+                    result.append('\\\\')  # double the backslash
+                    i += 1
+                    continue
+            elif ch == '"':
                 in_str = not in_str
                 result.append(ch)
+                i += 1
                 continue
-            if in_str and ch == '\n':
+            elif in_str and ch == '\n':
                 result.append('\\n')
+                i += 1
                 continue
-            if in_str and ch == '\t':
+            elif in_str and ch == '\t':
                 result.append('\\t')
+                i += 1
                 continue
-            if in_str and ch == '\r':
+            elif in_str and ch == '\r':
                 result.append('\\r')
+                i += 1
+                continue
+            elif in_str and ord(ch) < 0x20:
+                # Control character in string → escape it
+                result.append(f'\\u{ord(ch):04x}')
+                i += 1
                 continue
             result.append(ch)
+            i += 1
         fixed = ''.join(result)
 
         try:
@@ -1319,10 +1336,9 @@ class ScriptGenerator:
         except json.JSONDecodeError:
             pass
 
-        # Last resort: try to fix truncated JSON by closing open brackets
+        # Last resort: try to fix truncated JSON by closing open brackets in stack order
         try:
-            depth_curly = 0
-            depth_square = 0
+            bracket_stack = []  # tracks opening order: '{' or '['
             in_string = False
             escape = False
             for ch in fixed:
@@ -1337,20 +1353,23 @@ class ScriptGenerator:
                     continue
                 if in_string:
                     continue
-                if ch == '{':
-                    depth_curly += 1
+                if ch in '{[':
+                    bracket_stack.append(ch)
                 elif ch == '}':
-                    depth_curly -= 1
-                elif ch == '[':
-                    depth_square += 1
+                    if bracket_stack and bracket_stack[-1] == '{':
+                        bracket_stack.pop()
                 elif ch == ']':
-                    depth_square -= 1
+                    if bracket_stack and bracket_stack[-1] == '[':
+                        bracket_stack.pop()
 
-            if depth_curly > 0 or depth_square > 0:
-                # Close any open strings first
+            if bracket_stack:
                 if in_string:
                     fixed += '"'
-                fixed += ']' * depth_square + '}' * depth_curly
+                # Pop from end (innermost first) and add corresponding closers
+                closing = ''
+                for b in reversed(bracket_stack):
+                    closing += '}' if b == '{' else ']'
+                fixed += closing
                 return json.loads(fixed)
         except (json.JSONDecodeError, Exception):
             pass
