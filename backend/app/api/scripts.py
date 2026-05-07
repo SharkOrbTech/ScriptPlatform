@@ -188,22 +188,42 @@ async def upload_novel(
     genre: str = Form(default="重生"),
     style: str = Form(default="古风"),
 ):
-    """上传小说并异步转换为剧本（支持进度轮询）"""
+    """上传小说并异步转换为剧本（支持进度轮询）。
+
+    支持格式:
+    - .docx: 利用 Word 标题样式（Heading 1/2/3）识别章节边界，准确性最高
+    - .txt: 纯文本，通过正则识别 "第X章" 等常见章节标记
+    """
     content = await file.read()
 
-    # Try different encodings
+    if not content:
+        raise HTTPException(status_code=400, detail="文件为空")
+
     text = None
-    for encoding in ["utf-8", "gbk", "gb2312", "big5", "latin-1"]:
+    docx_chapters = None  # pre-parsed chapter list from DOCX headings
+
+    # Detect DOCX by ZIP magic bytes (DOCX is a ZIP archive)
+    if content[:4] == b'PK\x03\x04':
         try:
-            text = content.decode(encoding)
-            break
-        except UnicodeDecodeError:
-            continue
+            text, docx_chapters = script_generator.parse_docx(content)
+            if not text:
+                raise HTTPException(status_code=400, detail="无法从DOCX文件中提取文本内容")
+            logger.info(f"Parsed DOCX: {len(text)} chars, {len(docx_chapters) if docx_chapters else 0} chapters via headings")
+        except Exception as e:
+            logger.error(f"DOCX parsing failed: {e}")
+            raise HTTPException(status_code=400, detail=f"DOCX解析失败: {str(e)}")
+    else:
+        # Plain text: try different encodings
+        for encoding in ["utf-8", "gbk", "gb2312", "big5", "latin-1"]:
+            try:
+                text = content.decode(encoding)
+                break
+            except UnicodeDecodeError:
+                continue
+        if not text:
+            raise HTTPException(status_code=400, detail="无法解码文件，请使用UTF-8或GBK编码")
 
-    if not text:
-        raise HTTPException(status_code=400, detail="无法解码文件，请使用UTF-8或GBK编码")
-
-    # Limit size to 10M characters (supports very long novels)
+    # Limit size to 10M characters
     if len(text) > 10000000:
         text = text[:10000000]
 
@@ -213,6 +233,7 @@ async def upload_novel(
         episode_count=episode_count,
         genre=genre,
         style=style,
+        chapters=docx_chapters,
     )
 
     return {"task_id": task_id, "status": "generating"}

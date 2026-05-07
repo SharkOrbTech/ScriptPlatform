@@ -1377,8 +1377,15 @@ class ScriptGenerator:
         logger.error(f"JSON extraction failed after {max_retries + 1} attempts. Last response: {last_response[:500]}")
         return {}
 
-    async def start_novel_adaptation(self, text: str, episode_count: int = 8, genre: str = "重生", style: str = "古风") -> str:
-        """Start async novel adaptation. Returns task ID."""
+    async def start_novel_adaptation(self, text: str, episode_count: int = 8, genre: str = "重生",
+                                      style: str = "古风", chapters: list[str] | None = None) -> str:
+        """Start async novel adaptation. Returns task ID.
+
+        Args:
+            text: Full novel text (for story plan context)
+            chapters: Pre-parsed chapter texts (from DOCX headings or regex). If None,
+                      _split_chapters will be called on the text.
+        """
         task_id = str(uuid.uuid4())[:8]
         self._active_tasks[task_id] = ScriptResponse(
             id=task_id,
@@ -1387,13 +1394,15 @@ class ScriptGenerator:
             total_episodes=episode_count,
             started_at=datetime.now().isoformat(),
         )
-        asyncio.create_task(self._adapt_novel_async(task_id, text, episode_count, genre, style))
+        asyncio.create_task(self._adapt_novel_async(task_id, text, episode_count, genre, style, chapters))
         return task_id
 
-    async def _adapt_novel_async(self, task_id: str, novel_content: str, episode_count: int, genre: str, style: str):
+    async def _adapt_novel_async(self, task_id: str, novel_content: str, episode_count: int,
+                                  genre: str, style: str, chapters: list[str] | None = None):
         """Background wrapper that updates task status."""
         try:
-            result = await self.adapt_novel(novel_content, episode_count, genre, style, task_id=task_id)
+            result = await self.adapt_novel(novel_content, episode_count, genre, style,
+                                            task_id=task_id, chapters=chapters)
             self._active_tasks[task_id].script = Script(
                 id=task_id,
                 title=result.get("title", ""),
@@ -1423,7 +1432,8 @@ class ScriptGenerator:
             self._active_tasks[task_id].status = "failed"
             self._active_tasks[task_id].error = str(e)
 
-    async def adapt_novel(self, novel_content: str, episode_count: int = 8, genre: str = "重生", style: str = "古风", task_id: str = "") -> dict:
+    async def adapt_novel(self, novel_content: str, episode_count: int = 8, genre: str = "重生",
+                           style: str = "古风", task_id: str = "", chapters: list[str] | None = None) -> dict:
         """Convert a novel into a drama script — optimized pipeline with optional progress feedback.
 
         Optimizations:
@@ -1442,8 +1452,10 @@ class ScriptGenerator:
                 if title:
                     self._active_tasks[task_id].title = title
 
-        chapters = self._split_chapters(novel_content)
+        chapters = self._split_chapters(novel_content, docx_chapters=chapters)
         total_chars = len(novel_content)
+        if chapters is not None:
+            logger.info(f"Using pre-parsed chapters")
         logger.info(f"Novel split into {len(chapters)} chapters, total {total_chars} chars")
 
         # Phase 1: Summarize all chapters (lower threshold → better coverage)
@@ -1942,22 +1954,87 @@ class ScriptGenerator:
 
         return await self._call_and_extract_json(messages, temperature=0.8, max_tokens=8192)
 
-    def _split_chapters(self, text: str) -> list[str]:
-        """Split novel text into chapters using common patterns."""
-        # Common chapter patterns
+    @staticmethod
+    def parse_docx(file_bytes: bytes) -> tuple[str, list[str]]:
+        """Parse a .docx file and extract text with heading-based chapter boundaries.
+
+        Uses python-docx to read paragraph styles. Headings (Heading 1/2/3) become
+        chapter markers. Body text is assembled in order.
+
+        Returns (full_text, chapters) where chapters is a list of pre-split chapter
+        texts, or an empty list if no heading structure was found (caller should
+        fall back to regex splitting).
+        """
+        from docx import Document
+        from io import BytesIO
+
+        doc = Document(BytesIO(file_bytes))
+        full_lines = []
+        chapter_boundaries = []  # indices into full_lines where chapters start
+        current_chapter_lines = []
+
+        FLUSH_EVERY_N_LINES = 200  # prevent chapters from being too large
+
+        def _flush_chapter():
+            nonlocal current_chapter_lines
+            if current_chapter_lines:
+                chapter_boundaries.append(len(full_lines))
+                full_lines.extend(current_chapter_lines)
+                current_chapter_lines = []
+
+        for para in doc.paragraphs:
+            style_name = (para.style.name if para.style else "").lower()
+            text = para.text.strip()
+            if not text:
+                continue
+
+            is_heading = "heading" in style_name or "title" in style_name
+            if is_heading:
+                _flush_chapter()
+                # Mark as chapter header
+                current_chapter_lines.append(f"\n{text}\n")
+            else:
+                current_chapter_lines.append(text)
+                if len(current_chapter_lines) >= FLUSH_EVERY_N_LINES:
+                    _flush_chapter()
+
+        _flush_chapter()
+
+        full_text = "\n".join(full_lines)
+
+        # Build chapter list from boundaries
+        chapters = []
+        if len(chapter_boundaries) >= 2:
+            for i, start in enumerate(chapter_boundaries):
+                end = chapter_boundaries[i + 1] if i + 1 < len(chapter_boundaries) else len(full_lines)
+                ch_text = "\n".join(full_lines[start:end]).strip()
+                if len(ch_text) > 50:
+                    chapters.append(ch_text)
+
+        return full_text, chapters
+
+    def _split_chapters(self, text: str, docx_chapters: list[str] | None = None) -> list[str]:
+        """Split novel text into chapters.
+
+        Uses DOCX heading structure if available (most accurate), otherwise
+        falls back to regex patterns on plain text.
+        """
+        # Use DOCX heading structure if available
+        if docx_chapters and len(docx_chapters) >= 3:
+            return docx_chapters
+
+        # Regex patterns for plain text chapter detection
         patterns = [
             r'\n\s*第[一二三四五六七八九十百千\d]+[章回节卷集部]\s*',
             r'\n\s*Chapter\s*\d+',
-            r'\n\s*\d+\.\s+',
             r'\n\s*【第[一二三四五六七八九十百千\d]+[章回节]】',
             r'\n\s*[=]{3,}\s*\n',
             r'\n\s*[-]{3,}\s*\n',
         ]
 
-        # Try each pattern
         for pattern in patterns:
             splits = re.split(f'({pattern})', text)
-            if len(splits) > 3:  # Found meaningful splits
+            if len(splits) > 3:
                 chapters = []
                 current = ""
                 for part in splits:
@@ -1969,12 +2046,11 @@ class ScriptGenerator:
                         current += part
                 if current.strip():
                     chapters.append(current.strip())
-                # Filter out very short chapters
                 chapters = [c for c in chapters if len(c) > 100]
                 if len(chapters) >= 3:
                     return chapters
 
-        # Fallback: split by double newlines into chunks
+        # Fallback: split by double newlines
         chunks = re.split(r'\n\s*\n\s*\n', text)
         chunks = [c.strip() for c in chunks if len(c.strip()) > 100]
         if len(chunks) >= 3:

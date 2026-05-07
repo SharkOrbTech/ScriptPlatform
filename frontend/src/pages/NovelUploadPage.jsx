@@ -135,7 +135,7 @@ export default function NovelUploadPage() {
         <div className="bg-ink-50 rounded-lg p-4 text-sm text-ink-600 space-y-1.5">
           <p className="font-medium text-ink-700">使用提示：</p>
           <ul className="list-disc list-inside space-y-0.5 text-xs">
-            <li>支持TXT纯文本和Word文档格式</li>
+            <li>支持TXT纯文本和Word文档(.docx)格式，DOCX利用标题样式识别章节</li>
             <li>文件大小上限 500KB（约20-30万字）</li>
             <li>AI会自动提取主要角色和剧情线</li>
             <li>建议先使用短篇测试效果</li>
