@@ -175,6 +175,27 @@ export default function ScriptViewerPage() {
         </div>
       )}
 
+      {/* Foreshadowing Index */}
+      {script.foreshadowing?.length > 0 && (
+        <div className="card p-5 border-l-4 border-l-purple-500 bg-purple-50/30">
+          <h2 className="text-sm font-semibold text-purple-800 mb-3">伏笔索引</h2>
+          <div className="space-y-2">
+            {script.foreshadowing.map((fs, i) => (
+              <div key={i} className="flex items-start gap-2 text-sm">
+                <span className="text-purple-400 mt-0.5">*</span>
+                <div>
+                  <span className="text-ink-800">{fs.setup}</span>
+                  <span className="text-xs text-ink-400 ml-2">
+                    第{fs.episode}集埋下 → 第{fs.payoff_episode || '?'}集揭晓
+                    {fs.payoff_description && <span className="text-purple-600"> — {fs.payoff_description}</span>}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Copyright Result */}
       {copyrightResult && <CopyrightCard result={copyrightResult} />}
 

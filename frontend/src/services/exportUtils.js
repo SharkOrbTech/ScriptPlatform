@@ -2,6 +2,14 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } fro
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 
+const HOOK_LABELS = {
+  hook: '爆点钩子', cliffhanger: '结尾悬念', foreshadowing: '伏笔',
+  turning_point: '情节转折', emotional_peak: '情感高潮',
+  revelation: '真相揭露', conflict: '核心冲突',
+}
+
+function hookLabel(type) { return HOOK_LABELS[type] || type }
+
 function buildMarkdown(script) {
   const lines = []
   lines.push(`# ${script.title}`)
@@ -46,6 +54,17 @@ function buildMarkdown(script) {
     }
   }
 
+  // Foreshadowing index
+  const foreshadowing = script.foreshadowing || []
+  if (foreshadowing.length > 0) {
+    lines.push('## 伏笔索引')
+    lines.push('')
+    for (const fs of foreshadowing) {
+      lines.push(`- **${fs.setup}** → 第${fs.episode}集埋下，第${fs.payoff_episode || '?'}集揭晓${fs.payoff_description ? ': ' + fs.payoff_description : ''}`)
+    }
+    lines.push('')
+  }
+
   // Episodes
   if (script.episodes?.length > 0) {
     lines.push('## 分集剧本')
@@ -73,7 +92,7 @@ function buildMarkdown(script) {
           if (shot.dialogue) lines.push(`台词: ${shot.dialogue}`)
           if (shot.video_prompt) lines.push(`视频生成提示词: ${shot.video_prompt}`)
           else if (shot.ai_prompt) lines.push(`AI提示词: ${shot.ai_prompt}`)
-          if (shot.hook_type) lines.push(`钩子类型: ${shot.hook_type} - ${shot.hook_detail || ''}`)
+          if (shot.hook_type) lines.push(`钩子类型: ${hookLabel(shot.hook_type)} - ${shot.hook_detail || ''}`)
           lines.push('')
         }
       }
@@ -283,6 +302,15 @@ function buildOverviewMarkdown(script) {
   if (script.emotional_tone) lines.push(`**情感基调**: ${script.emotional_tone}`)
   if (script.theme || script.emotional_tone) lines.push('')
   if (script.synopsis) { lines.push('## 剧情梗概'); lines.push(''); lines.push(script.synopsis); lines.push('') }
+  const fs = script.foreshadowing || []
+  if (fs.length > 0) {
+    lines.push('## 伏笔索引')
+    lines.push('')
+    for (const f of fs) {
+      lines.push(`- **${f.setup}** → 第${f.episode}集埋下，第${f.payoff_episode || '?'}集揭晓${f.payoff_description ? ': ' + f.payoff_description : ''}`)
+    }
+    lines.push('')
+  }
   return lines.join('\n')
 }
 
@@ -326,7 +354,7 @@ function buildEpisodeMarkdown(script, ep) {
       if (shot.dialogue) lines.push(`- **台词**: ${shot.dialogue}`)
       if (shot.narration) lines.push(`- **内心独白**: ${shot.narration}`)
       if (shot.video_prompt) lines.push(`- **视频生成提示词**: ${shot.video_prompt}`)
-      if (shot.hook_type) lines.push(`- **钩子**: ${shot.hook_type} - ${shot.hook_detail || ''}`)
+      if (shot.hook_type) lines.push(`- **钩子**: ${hookLabel(shot.hook_type)} - ${shot.hook_detail || ''}`)
       lines.push('')
     }
   }
@@ -356,7 +384,7 @@ function buildEpisodesMarkdown(script) {
         if (shot.dialogue) lines.push(`台词: ${shot.dialogue}`)
         if (shot.video_prompt) lines.push(`视频生成提示词: ${shot.video_prompt}`)
         else if (shot.ai_prompt) lines.push(`AI提示词: ${shot.ai_prompt}`)
-        if (shot.hook_type) lines.push(`钩子: ${shot.hook_type} - ${shot.hook_detail || ''}`)
+        if (shot.hook_type) lines.push(`钩子: ${hookLabel(shot.hook_type)} - ${shot.hook_detail || ''}`)
         lines.push('')
       }
     }
