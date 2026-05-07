@@ -662,7 +662,7 @@ export default function GeneratorPage() {
 
           {/* Phase Stepper */}
           <div className="mb-6 max-w-lg mx-auto">
-            <div className="flex justify-between items-center">
+            <div className="flex items-center">
               {[
                 { key: 'plan', label: '策划' },
                 { key: 'character', label: '角色' },
@@ -671,17 +671,17 @@ export default function GeneratorPage() {
               ].map((phase, i, arr) => {
                 const progress = status?.progress || 0
                 const phaseProgress = [15, 20, 95, 100]
-                const isActive = progress < phaseProgress[i] && (i === 0 || progress >= phaseProgress[i - 1])
                 const isDone = progress >= phaseProgress[i]
+                const isActive = !isDone && (i === 0 || progress >= (phaseProgress[i - 1] || 0))
                 return (
-                  <div key={phase.key} className="flex items-center">
+                  <div key={phase.key} className="flex items-center" style={i < arr.length - 1 ? { flex: 1 } : {}}>
                     <div className="flex flex-col items-center">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-colors ${
                         isDone ? 'bg-brand-500 text-white' : isActive ? 'bg-brand-100 text-brand-700 ring-2 ring-brand-500' : 'bg-ink-100 text-ink-400'
                       }`}>
                         {isDone ? '✓' : i + 1}
                       </div>
-                      <span className={`text-xs mt-1 ${isDone || isActive ? 'text-ink-700' : 'text-ink-400'}`}>{phase.label}</span>
+                      <span className={`text-xs mt-1 whitespace-nowrap ${isDone || isActive ? 'text-ink-700' : 'text-ink-400'}`}>{phase.label}</span>
                     </div>
                     {i < arr.length - 1 && (
                       <div className={`flex-1 h-0.5 mx-1 mb-4 ${isDone ? 'bg-brand-500' : 'bg-ink-100'}`} />
