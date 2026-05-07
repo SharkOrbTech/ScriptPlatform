@@ -1236,14 +1236,7 @@ class ScriptGenerator:
         if not text or not text.strip():
             return {}
 
-        # Strategy 1: Extract from markdown code block (greedy match for nested braces)
-        json_match = re.search(r'```(?:json)?\s*(\{[\s\S]*\})\s*```', text)
-        if json_match:
-            result = self._try_parse_json(json_match.group(1))
-            if result:
-                return result
-
-        # Strategy 2: Find the outermost { } pair by counting braces
+        # Strategy 1: Find outermost { } by counting braces (primary — prompts require bare JSON)
         start = text.find('{')
         if start != -1:
             depth = 0
@@ -1257,6 +1250,13 @@ class ScriptGenerator:
                         if result:
                             return result
                         break
+
+        # Strategy 2: Extract from markdown code block (fallback for models that add ```json)
+        json_match = re.search(r'```(?:json)?\s*(\{[\s\S]*\})\s*```', text)
+        if json_match:
+            result = self._try_parse_json(json_match.group(1))
+            if result:
+                return result
 
         # Strategy 3: Regex fallback (greedy)
         json_match = re.search(r'\{[\s\S]*\}', text)
