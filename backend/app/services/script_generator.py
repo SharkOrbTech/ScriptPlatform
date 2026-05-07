@@ -1377,22 +1377,77 @@ class ScriptGenerator:
         logger.error(f"JSON extraction failed after {max_retries + 1} attempts. Last response: {last_response[:500]}")
         return {}
 
-    async def adapt_novel(self, novel_content: str, episode_count: int = 8, genre: str = "重生", style: str = "古风") -> dict:
-        """Convert a novel into a drama script — optimized pipeline.
+    async def start_novel_adaptation(self, text: str, episode_count: int = 8, genre: str = "重生", style: str = "古风") -> str:
+        """Start async novel adaptation. Returns task ID."""
+        task_id = str(uuid.uuid4())[:8]
+        self._active_tasks[task_id] = ScriptResponse(
+            id=task_id,
+            status="generating",
+            progress=0.0,
+            total_episodes=episode_count,
+            started_at=datetime.now().isoformat(),
+        )
+        asyncio.create_task(self._adapt_novel_async(task_id, text, episode_count, genre, style))
+        return task_id
 
-        Optimizations over the original:
+    async def _adapt_novel_async(self, task_id: str, novel_content: str, episode_count: int, genre: str, style: str):
+        """Background wrapper that updates task status."""
+        try:
+            result = await self.adapt_novel(novel_content, episode_count, genre, style, task_id=task_id)
+            self._active_tasks[task_id].script = Script(
+                id=task_id,
+                title=result.get("title", ""),
+                genre=result.get("genre", ""),
+                logline=result.get("logline", ""),
+                synopsis=result.get("synopsis", ""),
+                characters=[Character(**c) for c in result.get("characters", [])],
+                episodes=[Episode(**e) for e in result.get("episodes", [])],
+                scenes=result.get("scenes", []),
+                props=result.get("props", []),
+                theme=result.get("theme", ""),
+                emotional_tone=result.get("emotional_tone", ""),
+                style=result.get("style", style),
+            )
+            self._active_tasks[task_id].status = "completed"
+            self._active_tasks[task_id].progress = 100.0
+            self._completed_scripts[task_id] = result
+            # Persist to disk cache
+            try:
+                from app.api.scripts import save_script_to_disk_cache, _script_store
+                _script_store[task_id] = result
+                save_script_to_disk_cache()
+            except Exception as e:
+                logger.warning(f"Failed to persist adapted script {task_id}: {e}")
+        except Exception as e:
+            logger.error(f"Novel adaptation failed: {e}", exc_info=True)
+            self._active_tasks[task_id].status = "failed"
+            self._active_tasks[task_id].error = str(e)
+
+    async def adapt_novel(self, novel_content: str, episode_count: int = 8, genre: str = "重生", style: str = "古风", task_id: str = "") -> dict:
+        """Convert a novel into a drama script — optimized pipeline with optional progress feedback.
+
+        Optimizations:
         1. Merged overview extraction into story plan (saves 1 LLM call)
         2. Lowered batch-summary threshold (5+ ch / 10k+ chars → all novels get summaries)
         3. Skip _enhance_asset_designs when story plan already has complete prompts
         4. Parallel episode generation via asyncio.gather
         5. KB context truncation after all sections appended (prevents overflow)
         6. Single context format for all novel sizes
+        7. Async progress feedback via _active_tasks (when task_id provided)
         """
+        def _update_progress(progress: float, phase: str, title: str = ""):
+            if task_id and task_id in self._active_tasks:
+                self._active_tasks[task_id].progress = progress
+                self._active_tasks[task_id].current_phase = phase
+                if title:
+                    self._active_tasks[task_id].title = title
+
         chapters = self._split_chapters(novel_content)
         total_chars = len(novel_content)
         logger.info(f"Novel split into {len(chapters)} chapters, total {total_chars} chars")
 
         # Phase 1: Summarize all chapters (lower threshold → better coverage)
+        _update_progress(5.0, "正在拆分章节并生成摘要...")
         chapter_summaries = []
         chapter_hooks = []
         if total_chars > 10000 or len(chapters) > 5:
@@ -1432,11 +1487,13 @@ class ScriptGenerator:
             novel_context += f"\n\n【关键章节原文】\n{key_chapters_text}"
 
         # Phase 2: Generate story plan (merged overview + plan in one LLM call)
+        _update_progress(10.0, "正在分析原著并生成故事策划...")
         logger.info("Generating story plan from novel...")
         story_plan = await self._adapt_story_plan(novel_context, genre, style, episode_count)
         if not story_plan:
             logger.error("Story plan generation failed, falling back to single-shot adaptation")
             return await self._adapt_novel_single_shot(novel_context)
+        _update_progress(20.0, "故事策划完成", title=story_plan.get("title", ""))
 
         # Phase 3: Skip asset enhancement if story plan already has complete prompts
         chars = story_plan.get("characters", [])
@@ -1451,6 +1508,7 @@ class ScriptGenerator:
             logger.info("Story plan already has complete asset prompts, skipping asset enhancement")
             enhanced_plan = story_plan
         else:
+            _update_progress(20.0, "正在优化角色与场景设计...")
             logger.info("Enhancing incomplete asset designs...")
             enhanced_plan = await self._enhance_asset_designs(story_plan)
 
@@ -1460,6 +1518,7 @@ class ScriptGenerator:
         ch_per_ep = len(chapters) / episode_count if episode_count > 0 else 1
 
         # Phase 5: Generate all episodes in parallel
+        _update_progress(20.0, f"正在并行创作 {episode_count} 集剧本...")
         logger.info(f"Generating {episode_count} episodes in parallel...")
 
         async def generate_one(ep_num: int):
@@ -1515,6 +1574,8 @@ class ScriptGenerator:
                 return ep_num, None, str(e)
 
         results = await asyncio.gather(*[generate_one(n) for n in range(1, episode_count + 1)])
+
+        _update_progress(95.0, "正在组装最终剧本...")
 
         # Phase 6: Save episodes to KB sequentially and assemble
         episodes = []

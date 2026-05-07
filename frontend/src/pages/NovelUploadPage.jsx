@@ -34,9 +34,8 @@ export default function NovelUploadPage() {
 
     try {
       const result = await api.uploadNovel(file, params)
-      if (result.result) {
-        navigate('/scripts/' + result.task_id, { state: { script: result.result } })
-      }
+      // Adapt now runs async — redirect to progress page for polling
+      navigate(`/generate/${result.task_id}`, { replace: true })
     } catch (err) {
       setError(err.message)
     } finally {

@@ -188,7 +188,7 @@ async def upload_novel(
     genre: str = Form(default="重生"),
     style: str = Form(default="古风"),
 ):
-    """上传小说并转换为剧本"""
+    """上传小说并异步转换为剧本（支持进度轮询）"""
     content = await file.read()
 
     # Try different encodings
@@ -207,22 +207,15 @@ async def upload_novel(
     if len(text) > 10000000:
         text = text[:10000000]
 
-    result = await script_generator.adapt_novel(
-        novel_content=text,
+    # Start async adaptation with progress feedback
+    task_id = await script_generator.start_novel_adaptation(
+        text=text,
         episode_count=episode_count,
         genre=genre,
         style=style,
     )
 
-    # Store the result
-    script_id = str(uuid.uuid4())[:8]
-    if result:
-        result["id"] = script_id
-        result["created_at"] = datetime.now().isoformat()
-        _script_store[script_id] = result
-        _save_disk_cache()
-
-    return {"task_id": script_id, "result": result}
+    return {"task_id": task_id, "status": "generating"}
 
 
 @router.post("/{script_id}/copyright-check")
