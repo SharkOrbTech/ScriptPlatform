@@ -1452,10 +1452,15 @@ class ScriptGenerator:
                 if title:
                     self._active_tasks[task_id].title = title
 
-        chapters = self._split_chapters(novel_content, docx_chapters=chapters)
+        chapters_result = self._split_chapters(novel_content, docx_chapters=chapters)
+        # If regex/double-newline only gave us equal-length chunks (last fallback), try intelligent detection
+        if chapters is None and len(chapters_result) < 3:
+            logger.info("Regex split found too few chapters, trying intelligent detection...")
+            chapters_result = await self._split_chapters_intelligent(novel_content)
         total_chars = len(novel_content)
+        chapters = chapters_result
         if chapters is not None:
-            logger.info(f"Using pre-parsed chapters")
+            logger.info(f"Using pre-parsed chapters (DOCX)")
         logger.info(f"Novel split into {len(chapters)} chapters, total {total_chars} chars")
 
         # Phase 1: Summarize all chapters (lower threshold → better coverage)
@@ -2013,17 +2018,168 @@ class ScriptGenerator:
 
         return full_text, chapters
 
-    def _split_chapters(self, text: str, docx_chapters: list[str] | None = None) -> list[str]:
-        """Split novel text into chapters.
+    def _split_paragraphs(self, text: str) -> list[str]:
+        """Split text into paragraphs (non-empty lines, stripped)."""
+        return [p.strip() for p in text.split('\n') if p.strip()]
 
-        Uses DOCX heading structure if available (most accurate), otherwise
-        falls back to regex patterns on plain text.
+    def _score_boundary_candidates(self, paragraphs: list[str]) -> list[tuple[int, float, str]]:
+        """Statistical boundary scoring. Returns [(index, score, reason), ...] sorted by score desc.
+
+        No LLM involved. Uses signals:
+        - Blank-line gap before paragraph
+        - Length anomaly (very short para surrounded by long ones → likely title)
+        - Typographic markers (ALL CAPS, separator lines like ---, ***, ===)
+        - Vocabulary shift from previous paragraph (word overlap ratio)
+        """
+        if len(paragraphs) < 5:
+            return []
+
+        scores = []
+        # Running average paragraph length
+        avg_len = sum(len(p) for p in paragraphs) / max(len(paragraphs), 1)
+
+        for i in range(1, len(paragraphs)):  # skip first para
+            para = paragraphs[i]
+            prev = paragraphs[i - 1]
+            score = 0.0
+            reasons = []
+
+            # 1. Short paragraph surrounded by long ones → likely title/heading
+            para_len = len(para)
+            if para_len < avg_len * 0.4 and para_len < 80 and len(prev) > avg_len * 0.6:
+                score += 3.0
+                reasons.append("short_title")
+
+            # 2. Typographic markers: ALL CAPS, separators
+            if re.match(r'^[A-Z\s]{5,}$', para) and len(para) > 5:
+                score += 2.0
+                reasons.append("all_caps")
+            if re.match(r'^[=\-*#]{3,}$', para):
+                score += 1.5
+                reasons.append("separator")
+
+            # 3. Explicit chapter markers (regex — high confidence)
+            if re.search(r'第[一二三四五六七八九十百千\d]+[章回节卷集部]', para):
+                score += 5.0
+                reasons.append("explicit_chapter")
+            if re.search(r'Chapter\s*\d+', para, re.IGNORECASE):
+                score += 5.0
+                reasons.append("chapter_en")
+            if re.search(r'^(序章|楔子|终章|尾声|后记|番外|卷[一二三四五六七八九十百千\d]+)', para):
+                score += 4.0
+                reasons.append("special_section")
+
+            # 4. Time/location shift patterns (regex + keywords)
+            shift_pattern = re.search(
+                r'(第[一二三四五六七八九十百千\d]+[天日月年]后|'
+                r'[一两三四五六七八九十百千\d]+个?[月天年]后|'
+                r'与此同时|镜头转[到向]|画面一[转变]|另一方面|'
+                r'话分两头|花开两朵|第二天|次日|当晚|午夜|凌晨|清晨|'
+                r'不知过了多久|时光飞逝|转眼[间眼]|'
+                r'场景切换|地点转换|镜头切换)',
+                para[:30]
+            )
+            if shift_pattern:
+                score += 1.5
+                reasons.append(f"shift:{shift_pattern.group(0)}")
+
+            # 5. Vocabulary shift from previous paragraph (simple word overlap)
+            prev_words = set(re.findall(r'[一-鿿]+', prev))
+            curr_words = set(re.findall(r'[一-鿿]+', para))
+            if prev_words and curr_words:
+                overlap = len(prev_words & curr_words) / len(curr_words | set([""]))
+                if overlap < 0.15 and len(para) > 20:
+                    score += 1.0
+                    reasons.append("vocab_shift")
+
+            # 6. Numbered patterns (1. / 一、 / Part 1)
+            if re.match(r'^\d+[\.\、\s]', para) and len(para) < 60:
+                score += 1.5
+                reasons.append("numbered")
+
+            if score > 0:
+                scores.append((i, score, ", ".join(reasons)))
+
+        scores.sort(key=lambda x: -x[1])
+        return scores
+
+    async def _llm_confirm_boundaries(self, text: str, candidates: list[tuple[int, float, str]],
+                                       paragraphs: list[str]) -> list[str]:
+        """One LLM call on sampled context around high-scoring candidates.
+
+        Only sends ~200 chars around each candidate, never the full text.
+        Returns list of exact marker strings that start chapters.
+        """
+        if not candidates:
+            return []
+
+        # Take top candidates (max 15 to keep context small)
+        top = candidates[:15]
+
+        # Build samples: 200 chars around each candidate paragraph
+        samples = []
+        for idx, score, reasons in top:
+            start = max(0, idx - 2)
+            end = min(len(paragraphs), idx + 2)
+            snippet = "\n".join(paragraphs[start:end])
+            if len(snippet) > 300:
+                snippet = snippet[:300]
+            samples.append({
+                "candidate_idx": idx,
+                "score": round(score, 1),
+                "reasons": reasons,
+                "text": paragraphs[idx][:100],
+                "context": snippet,
+            })
+
+        prompt = f"""你是一个小说结构分析专家。下面是一本小说的段落样本，我需要你确认哪些位置是真正的章节/分节边界。
+
+对每个候选边界，判断它是否确实开启了一个新章节。返回应该是真正章节开始的准确标记文字（通常是章节标题、数字编号、或第一句话）。
+
+候选边界（按置信度排序）：
+{json.dumps(samples, ensure_ascii=False, indent=2)}
+
+请输出纯JSON数组，每个元素是确认的章节起始标记文字（精确字符串，用于分割全文）：
+["第一章 标题", "Chapter 2", "***", ...]
+
+规则：
+- 只返回确认是真正章节边界的位置
+- 标记文字必须与原文完全一致（用于字符串split）
+- 不要返回模糊或不确定的边界
+- 如果所有候选都不是真正的章节边界，返回空数组 []
+- 显式章节标记（第X章、Chapter X）置信度最高"""
+
+        try:
+            response = await ai_client.chat([
+                {"role": "system", "content": "你是一个小说分析专家。只输出纯JSON数组，不要包含任何其他文字。"},
+                {"role": "user", "content": prompt},
+            ], temperature=0.1, max_tokens=1000)
+
+            # Extract JSON array from response
+            json_match = re.search(r'\[[\s\S]*\]', response)
+            if json_match:
+                markers = json.loads(json_match.group(0))
+                if isinstance(markers, list):
+                    logger.info(f"LLM confirmed {len(markers)} chapter boundaries")
+                    return markers
+        except Exception as e:
+            logger.warning(f"LLM boundary confirmation failed: {e}")
+
+        return []
+
+    def _split_chapters(self, text: str, docx_chapters: list[str] | None = None) -> list[str]:
+        """Split novel text into chapters using the best available method.
+
+        Priority:
+        1. DOCX heading structure (from python-docx parse_docx)
+        2. Regex patterns (explicit "第X章", "Chapter N", etc.)
+        3. Intelligent detection (statistical scoring → called from adapt_novel async)
         """
         # Use DOCX heading structure if available
         if docx_chapters and len(docx_chapters) >= 3:
             return docx_chapters
 
-        # Regex patterns for plain text chapter detection
+        # Regex patterns for explicit chapter markers
         patterns = [
             r'\n\s*第[一二三四五六七八九十百千\d]+[章回节卷集部]\s*',
             r'\n\s*Chapter\s*\d+',
@@ -2050,7 +2206,7 @@ class ScriptGenerator:
                 if len(chapters) >= 3:
                     return chapters
 
-        # Fallback: split by double newlines
+        # Fallback: split by double newlines (noisy but works for scene breaks)
         chunks = re.split(r'\n\s*\n\s*\n', text)
         chunks = [c.strip() for c in chunks if len(c.strip()) > 100]
         if len(chunks) >= 3:
@@ -2059,6 +2215,60 @@ class ScriptGenerator:
         # Final fallback: equal-length chunks
         chunk_size = max(2000, len(text) // 20)
         return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+
+    async def _split_chapters_intelligent(self, text: str) -> list[str]:
+        """Intelligent chapter detection: statistical pre-filtering + 1 LLM confirmation call.
+
+        Only sends sampled candidate regions to LLM — never dumps full text into context.
+        Falls back to _split_chapters result if LLM doesn't improve it.
+        """
+        paragraphs = self._split_paragraphs(text)
+        if len(paragraphs) < 10:
+            return self._split_chapters(text)
+
+        # Phase 1: Statistical scoring (no LLM)
+        candidates = self._score_boundary_candidates(paragraphs)
+        if not candidates:
+            return self._split_chapters(text)
+
+        # Phase 2: LLM confirmation (1 call, sampled context only)
+        markers = await self._llm_confirm_boundaries(text, candidates, paragraphs)
+
+        # Phase 3: Split using confirmed markers
+        if markers and len(markers) >= 2:
+            chapters = self._split_by_markers(text, markers)
+            chapters = [c.strip() for c in chapters if len(c.strip()) > 100]
+            if len(chapters) >= 3:
+                logger.info(f"Intelligent split: {len(chapters)} chapters from {len(markers)} LLM-confirmed markers")
+                return chapters
+
+        # Fall back to regex-based result
+        logger.info("Intelligent split did not improve chapter count, using regex result")
+        return self._split_chapters(text)
+
+    def _split_by_markers(self, text: str, markers: list[str]) -> list[str]:
+        """Split text using confirmed chapter boundary markers."""
+        if not markers:
+            return [text]
+
+        # Build regex alternation from markers, sorted longest-first for greedy matching
+        escaped = [re.escape(m) for m in sorted(markers, key=len, reverse=True)]
+        pattern = '(' + '|'.join(escaped) + ')'
+
+        parts = re.split(pattern, text)
+        chapters = []
+        current = ""
+        for part in parts:
+            is_marker = any(part == m for m in markers)
+            if is_marker:
+                if current.strip():
+                    chapters.append(current.strip())
+                current = part
+            else:
+                current += part
+        if current.strip():
+            chapters.append(current.strip())
+        return chapters
 
     async def _extract_novel_overview(self, text: str, genre: str, style: str) -> dict:
         """Extract novel overview from early chapters."""
