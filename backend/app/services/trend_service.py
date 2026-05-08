@@ -52,15 +52,25 @@ class TrendService:
     def _save_disk_cache(self, items: list[TrendItem]):
         """Save trends to disk cache."""
         try:
+            now = datetime.now()
             CACHE_DIR.mkdir(parents=True, exist_ok=True)
             data = {
-                "cached_at": datetime.now().isoformat(),
+                "cached_at": now.isoformat(),
                 "items": [item.model_dump(mode='json') for item in items],
             }
             TRENDS_CACHE_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+            # Also update in-memory disk cache so subsequent requests hit it
+            self._cache["all_trends_disk"] = (items, now)
             logger.info(f"Saved {len(items)} trends to disk cache")
         except Exception as e:
             logger.warning(f"Failed to save disk cache: {e}")
+
+    def _try_load_disk_cache(self):
+        """Try loading disk cache on-demand (called if in-memory miss)."""
+        if "all_trends_disk" in self._cache:
+            return  # already loaded
+        if TRENDS_CACHE_FILE.exists():
+            self._load_disk_cache()
 
     @property
     def is_fetching(self) -> bool:
@@ -75,11 +85,35 @@ class TrendService:
             if datetime.now() - cached_at < self._cache_ttl:
                 return items
 
+        # Try on-demand disk cache load (fixes startup race when cache file exists but didn't load at init)
+        if not force_refresh:
+            self._try_load_disk_cache()
+
         # Check disk cache (24h validity)
         if not force_refresh and "all_trends_disk" in self._cache:
             items, cached_at = self._cache["all_trends_disk"]
             if datetime.now() - cached_at < timedelta(hours=24):
                 return items
+
+        # Prevent concurrent scrapes: if already fetching, wait for it
+        if self._is_fetching:
+            logger.info("Already fetching trends, waiting...")
+            for _ in range(60):  # wait up to 60 seconds
+                await asyncio.sleep(1)
+                if not self._is_fetching:
+                    # Fetch completed, now try caches again
+                    if cache_key in self._cache:
+                        items, cached_at = self._cache[cache_key]
+                        if datetime.now() - cached_at < self._cache_ttl:
+                            return items
+                    if "all_trends_disk" in self._cache:
+                        items, cached_at = self._cache["all_trends_disk"]
+                        if datetime.now() - cached_at < timedelta(hours=24):
+                            return items
+                    break
+            else:
+                # Timed out waiting, force a fresh fetch
+                logger.warning("Timed out waiting for in-progress fetch, starting new one")
 
         self._is_fetching = True
         try:
