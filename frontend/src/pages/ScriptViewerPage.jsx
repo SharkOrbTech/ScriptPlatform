@@ -13,7 +13,7 @@ export default function ScriptViewerPage() {
 
   const [copyrightResult, setCopyrightResult] = useState(script?.copyright_risk || null)
   const [checkingCopyright, setCheckingCopyright] = useState(false)
-  const [expandedChar, setExpandedChar] = useState(null)
+  const [expandedChars, setExpandedChars] = useState(null) // null = all expanded initially
 
   // Rewrite state
   const [rewriteTarget, setRewriteTarget] = useState(null) // {target, targetName}
@@ -233,8 +233,8 @@ export default function ScriptViewerPage() {
       {activeTab === 'characters' && (
         <CharactersTab
           characters={script.characters || []}
-          expandedChar={expandedChar}
-          setExpandedChar={setExpandedChar}
+          expandedChars={expandedChars}
+          setExpandedChars={setExpandedChars}
           onRewrite={(name) => setRewriteTarget({ target: 'character', targetName: name })}
         />
       )}
@@ -478,8 +478,22 @@ function ShotCard({ shot }) {
   )
 }
 
-function CharactersTab({ characters, expandedChar, setExpandedChar, onRewrite }) {
+function CharactersTab({ characters, expandedChars, setExpandedChars, onRewrite }) {
   if (!characters.length) return <div className="text-center py-12 text-ink-400">暂无角色数据</div>
+
+  const isExpanded = (i) => expandedChars === null || expandedChars.has(i)
+  const toggleChar = (i) => {
+    if (expandedChars === null) {
+      // all are expanded, user clicks one → collapse only that one
+      const s = new Set(characters.map((_, idx) => idx))
+      s.delete(i)
+      setExpandedChars(s)
+    } else {
+      const s = new Set(expandedChars)
+      if (s.has(i)) s.delete(i); else s.add(i)
+      setExpandedChars(s)
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -487,7 +501,7 @@ function CharactersTab({ characters, expandedChar, setExpandedChar, onRewrite })
         <div key={i} className="card overflow-hidden">
           <div
             className="p-4 cursor-pointer hover:bg-ink-50 transition-colors"
-            onClick={() => setExpandedChar(expandedChar === i ? null : i)}
+            onClick={() => toggleChar(i)}
           >
             <div className="flex items-center justify-between">
               <div>
@@ -502,14 +516,14 @@ function CharactersTab({ characters, expandedChar, setExpandedChar, onRewrite })
                 <button className="text-xs text-brand-600 hover:text-brand-700" onClick={(e) => { e.stopPropagation(); onRewrite(char.name) }}>
                   改写
                 </button>
-                <svg className={`w-5 h-5 text-ink-400 transition-transform ${expandedChar === i ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className={`w-5 h-5 text-ink-400 transition-transform ${isExpanded(i) ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </div>
             </div>
           </div>
 
-          {expandedChar === i && (
+          {isExpanded(i) && (
             <div className="border-t border-ink-100 p-4 space-y-3 animate-fade-in">
               {char.appearance && (
                 <div>
