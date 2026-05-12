@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 MAX_RETRIES = 3
-RETRY_DELAY = 2.0
+RETRY_DELAY = 0.0  # retry immediately on timeout/transient errors
 
 
 class AIClient:
@@ -21,7 +21,7 @@ class AIClient:
             self.client = openai.AsyncOpenAI(
                 api_key=settings.OPENAI_API_KEY,
                 base_url=settings.OPENAI_BASE_URL,
-                timeout=httpx.Timeout(300.0, connect=10.0),
+                timeout=httpx.Timeout(600.0, connect=10.0),
                 max_retries=0,  # we handle retries ourselves
             )
             self.model = settings.OPENAI_MODEL
@@ -71,7 +71,9 @@ class AIClient:
                 last_error = e
                 logger.warning(f"AI call attempt {attempt + 1}/{MAX_RETRIES} failed: {e}")
                 if attempt < MAX_RETRIES - 1:
-                    await asyncio.sleep(RETRY_DELAY * (attempt + 1))
+                    delay = 0.0 if attempt == 0 else RETRY_DELAY * attempt
+                    if delay > 0:
+                        await asyncio.sleep(delay)
             except Exception as e:
                 logger.error(f"Unexpected AI error: {e}", exc_info=True)
                 raise
