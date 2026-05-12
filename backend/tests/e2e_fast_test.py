@@ -385,6 +385,93 @@ async def run_tests():
         # Clean up - don't actually wait for 200 episodes
         print()
 
+        # Step 15: Owner scoping + admin script management
+        print("=== Step 15: Owner scoping + admin script management ===")
+        admin_headers = headers
+        uniq = f"owner_test_{os.getpid()}"
+        # Create a user
+        resp = await client.post("/api/auth/create-account", headers=admin_headers, json={
+            "username": uniq, "password": "pw123456",
+        })
+        check("Create owner_test user", resp.status_code == 200)
+        resp = await client.post("/api/auth/login", json={"username": uniq, "password": "pw123456"})
+        check("Login as new user", resp.status_code == 200)
+        user_token = resp.json()["token"]
+        user_headers = {"Authorization": f"Bearer {user_token}"}
+
+        # Admin scripts: admin should see all scripts from admin only in /api/scripts/list
+        resp = await client.get("/api/scripts/list", headers=admin_headers)
+        admin_scripts_before = resp.json().get("items", [])
+        # User should see 0 scripts initially
+        resp = await client.get("/api/scripts/list", headers=user_headers)
+        check("New user has 0 scripts", len(resp.json().get("items", [])) == 0)
+
+        # Admin-only list all: should see all scripts
+        resp = await client.get("/api/admin/scripts", headers=admin_headers)
+        check("Admin can list all scripts", resp.status_code == 200)
+        all_admin_list = resp.json().get("items", [])
+        check("All scripts visible to admin", len(all_admin_list) >= 1)
+
+        # User cannot hit admin endpoints
+        resp = await client.get("/api/admin/scripts", headers=user_headers)
+        check("Non-admin gets 403 on /api/admin/scripts", resp.status_code == 403)
+
+        # Admin copies one script to the new user
+        some_script_id = all_admin_list[0]["id"]
+        resp = await client.post(f"/api/admin/scripts/{some_script_id}/copy", headers=admin_headers,
+                                   json={"target_owner": uniq, "new_title": "copied for test"})
+        check("Admin copy succeeds", resp.status_code == 200)
+        new_id = resp.json().get("new_id")
+
+        # Now user should see exactly 1 script
+        resp = await client.get("/api/scripts/list", headers=user_headers)
+        user_items = resp.json().get("items", [])
+        check("New user sees 1 script after copy", len(user_items) == 1)
+        check("Copied script has correct title", user_items[0]["title"] == "copied for test")
+
+        # User can GET their own script
+        resp = await client.get(f"/api/scripts/{new_id}", headers=user_headers)
+        check("User can GET own script", resp.status_code == 200)
+
+        # User cannot GET someone else's script
+        resp = await client.get(f"/api/scripts/{some_script_id}", headers=user_headers)
+        check("User cannot GET another's script", resp.status_code == 403)
+
+        # Admin demote / promote flow
+        resp = await client.post(f"/api/admin/accounts/{uniq}/promote", headers=admin_headers)
+        check("Admin can promote", resp.status_code == 200)
+        resp = await client.post(f"/api/admin/accounts/{uniq}/demote", headers=admin_headers)
+        check("Admin can demote", resp.status_code == 200)
+
+        # Admin resets password
+        resp = await client.post(f"/api/admin/accounts/{uniq}/reset-password",
+                                   headers=admin_headers, json={"new_password": "newpw123"})
+        check("Admin can reset password", resp.status_code == 200)
+        resp = await client.post("/api/auth/login", json={"username": uniq, "password": "newpw123"})
+        check("Login with new password works", resp.status_code == 200)
+
+        # Admin transfers the copied script back to admin
+        resp = await client.post(f"/api/admin/scripts/{new_id}/transfer", headers=admin_headers,
+                                   json={"owner": "admin"})
+        check("Admin transfer succeeds", resp.status_code == 200)
+        resp = await client.get("/api/scripts/list", headers=user_headers)
+        check("After transfer, user has 0 scripts", len(resp.json().get("items", [])) == 0)
+
+        # Admin deletes the copy
+        resp = await client.delete(f"/api/admin/scripts/{new_id}", headers=admin_headers)
+        check("Admin delete succeeds", resp.status_code == 200)
+
+        # Clean up the test user
+        resp = await client.delete(f"/api/auth/accounts/{uniq}", headers=admin_headers)
+        check("Cleanup user", resp.status_code == 200)
+        print()
+
+        # Step 16: Anonymous access is blocked
+        print("=== Step 16: Anonymous access blocked ===")
+        resp = await client.get("/api/scripts/list")
+        check("Anonymous list returns 403", resp.status_code in (401, 403))
+        print()
+
         # Summary
         print("=" * 50)
         print(f"  Results: {PASS} passed, {FAIL} failed")

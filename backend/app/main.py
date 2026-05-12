@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.core.config import get_settings
 from app.core.database import init_db, async_session
-from app.api import trends, scripts, auth
+from app.api import trends, scripts, auth, admin
 
 settings = get_settings()
 
@@ -88,6 +88,7 @@ app.add_middleware(
 app.include_router(trends.router)
 app.include_router(scripts.router)
 app.include_router(auth.router)
+app.include_router(admin.router)
 
 
 @app.get("/api/health")

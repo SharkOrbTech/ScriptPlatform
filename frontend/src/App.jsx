@@ -6,7 +6,7 @@ import ScriptViewerPage from './pages/ScriptViewerPage'
 import NovelUploadPage from './pages/NovelUploadPage'
 import ScriptListPage from './pages/ScriptListPage'
 import LoginPage from './pages/LoginPage'
-import AccountManagementPage from './pages/AccountManagementPage'
+import AdminPage from './pages/AdminPage'
 import { api } from './services/api'
 
 // Global background task context
@@ -72,6 +72,21 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+function AdminRoute({ children }) {
+  const token = localStorage.getItem('token');
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+  let user = null;
+  try {
+    user = JSON.parse(localStorage.getItem('user') || 'null');
+  } catch {}
+  if (!user?.is_admin) {
+    return <Navigate to="/" replace />;
+  }
+  return children;
+}
+
 function App() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -102,10 +117,6 @@ function App() {
     { path: '/novel', label: '小说改编' },
     { path: '/scripts', label: '我的剧本' },
   ]
-
-  if (user?.is_admin) {
-    navItems.push({ path: '/accounts', label: '账号管理' });
-  }
 
   const isActive = (path) => {
     if (path === '/') return location.pathname === '/'
@@ -153,6 +164,23 @@ function App() {
               {user && (
                 <span className="text-sm text-ink-600">{user.username}</span>
               )}
+              {user?.is_admin && (
+                <Link
+                  to="/admin"
+                  title="后台管理"
+                  className={`px-2 py-1.5 text-sm rounded-lg transition-colors no-underline flex items-center gap-1 ${
+                    location.pathname.startsWith('/admin')
+                      ? 'bg-brand-50 text-brand-700'
+                      : 'text-ink-500 hover:text-ink-800 hover:bg-ink-50'
+                  }`}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                  </svg>
+                  <span>管理</span>
+                </Link>
+              )}
               <button
                 onClick={handleLogout}
                 className="px-3 py-1.5 text-sm text-ink-500 hover:text-ink-700 hover:bg-ink-50 rounded-lg transition-colors"
@@ -193,6 +221,19 @@ function App() {
                   {item.label}
                 </Link>
               ))}
+              {user?.is_admin && (
+                <Link
+                  to="/admin"
+                  className={`block px-3 py-2 text-sm font-medium rounded-lg no-underline ${
+                    location.pathname.startsWith('/admin')
+                      ? 'bg-brand-50 text-brand-700'
+                      : 'text-ink-600 hover:bg-ink-50'
+                  }`}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  后台管理
+                </Link>
+              )}
               <div className="border-t border-ink-100 mt-2 pt-2 px-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-ink-600">{user?.username}</span>
@@ -218,7 +259,8 @@ function App() {
           <Route path="/novel" element={<ProtectedRoute><NovelUploadPage /></ProtectedRoute>} />
           <Route path="/scripts" element={<ProtectedRoute><ScriptListPage /></ProtectedRoute>} />
           <Route path="/scripts/:scriptId" element={<ProtectedRoute><ScriptViewerPage /></ProtectedRoute>} />
-          <Route path="/accounts" element={<ProtectedRoute><AccountManagementPage /></ProtectedRoute>} />
+          <Route path="/accounts" element={<Navigate to="/admin" replace />} />
+          <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
         </Routes>
       </main>
 

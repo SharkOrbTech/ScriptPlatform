@@ -57,6 +57,45 @@ export const api = {
   changePassword: (oldPassword, newPassword) =>
     request('/auth/change-password', { method: 'POST', body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }) }),
 
+  // Admin: account management
+  adminPromoteAccount: (username) =>
+    request(`/admin/accounts/${encodeURIComponent(username)}/promote`, { method: 'POST' }),
+
+  adminDemoteAccount: (username) =>
+    request(`/admin/accounts/${encodeURIComponent(username)}/demote`, { method: 'POST' }),
+
+  adminResetPassword: (username, newPassword) =>
+    request(`/admin/accounts/${encodeURIComponent(username)}/reset-password`, {
+      method: 'POST',
+      body: JSON.stringify({ new_password: newPassword }),
+    }),
+
+  adminListAccountScripts: (username) =>
+    request(`/admin/accounts/${encodeURIComponent(username)}/scripts`),
+
+  adminListAllScripts: () => request('/admin/scripts'),
+
+  adminTransferScript: (scriptId, owner) =>
+    request(`/admin/scripts/${scriptId}/transfer`, {
+      method: 'POST',
+      body: JSON.stringify({ owner }),
+    }),
+
+  adminCopyScript: (scriptId, targetOwner, newTitle) =>
+    request(`/admin/scripts/${scriptId}/copy`, {
+      method: 'POST',
+      body: JSON.stringify({ target_owner: targetOwner, new_title: newTitle || null }),
+    }),
+
+  adminDeleteScript: (scriptId) =>
+    request(`/admin/scripts/${scriptId}`, { method: 'DELETE' }),
+
+  adminBulkDeleteByTitle: (title) =>
+    request('/admin/scripts/bulk-delete-by-title', {
+      method: 'POST',
+      body: JSON.stringify({ title }),
+    }),
+
   // Trends
   getTrends: (source = 'all', forceRefresh = false) =>
     request(`/trends?source=${source}&force_refresh=${forceRefresh}`),
@@ -88,6 +127,9 @@ export const api = {
 
   getScript: (scriptId) =>
     request(`/scripts/${scriptId}`),
+
+  deleteScript: (scriptId) =>
+    request(`/scripts/${scriptId}`, { method: 'DELETE' }),
 
   listScripts: () =>
     request('/scripts/list'),

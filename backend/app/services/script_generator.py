@@ -857,8 +857,11 @@ class ScriptGenerator:
     def __init__(self):
         self._active_tasks: dict[str, ScriptResponse] = {}
         self._completed_scripts: dict[str, dict] = {}
+        # Maps task_id -> owner username; kept separate from ScriptResponse to avoid
+        # touching the public schema.
+        self._task_owners: dict[str, str] = {}
 
-    async def start_generation(self, request: ScriptRequest) -> str:
+    async def start_generation(self, request: ScriptRequest, owner: str = "") -> str:
         """Start async script generation. Returns task ID."""
         task_id = str(uuid.uuid4())[:8]
         project_id = f"project_{task_id}"
@@ -870,12 +873,18 @@ class ScriptGenerator:
             total_episodes=request.episode_count,
             started_at=datetime.now().isoformat(),
         )
+        if owner:
+            self._task_owners[task_id] = owner
 
         asyncio.create_task(self._generate_script(task_id, project_id, request))
         return task_id
 
     async def get_task_status(self, task_id: str) -> Optional[ScriptResponse]:
         return self._active_tasks.get(task_id)
+
+    def get_task_owner(self, task_id: str) -> Optional[str]:
+        """Return the owner username for a task, or None if not tracked."""
+        return self._task_owners.get(task_id)
 
     def list_all_tasks(self) -> list[dict]:
         """Return all tasks: active (generating) + completed. For script list UI."""
@@ -1009,12 +1018,16 @@ class ScriptGenerator:
             self._active_tasks[task_id].progress = 100.0
 
             # Store completed script persistently so it's available even if abandoned by polling
-            self._completed_scripts[task_id] = script.model_dump()
+            completed_dict = script.model_dump()
+            owner = self._task_owners.get(task_id, "")
+            if owner:
+                completed_dict["owner"] = owner
+            self._completed_scripts[task_id] = completed_dict
 
             # Persist to disk cache immediately upon completion
             try:
                 from app.api.scripts import save_script_to_disk_cache, _script_store
-                _script_store[task_id] = script.model_dump()
+                _script_store[task_id] = completed_dict
                 save_script_to_disk_cache()
             except Exception as e:
                 logger.warning(f"Failed to persist script {task_id} to disk cache: {e}")
@@ -1403,13 +1416,15 @@ class ScriptGenerator:
         return {}
 
     async def start_novel_adaptation(self, text: str, episode_count: int = 8, genre: str = "重生",
-                                      style: str = "古风", chapters: list[str] | None = None) -> str:
+                                      style: str = "古风", chapters: list[str] | None = None,
+                                      owner: str = "") -> str:
         """Start async novel adaptation. Returns task ID.
 
         Args:
             text: Full novel text (for story plan context)
             chapters: Pre-parsed chapter texts (from DOCX headings or regex). If None,
                       _split_chapters will be called on the text.
+            owner: Username of the account that initiated the adaptation.
         """
         task_id = str(uuid.uuid4())[:8]
         self._active_tasks[task_id] = ScriptResponse(
@@ -1419,6 +1434,8 @@ class ScriptGenerator:
             total_episodes=episode_count,
             started_at=datetime.now().isoformat(),
         )
+        if owner:
+            self._task_owners[task_id] = owner
         asyncio.create_task(self._adapt_novel_async(task_id, text, episode_count, genre, style, chapters))
         return task_id
 
@@ -1456,6 +1473,9 @@ class ScriptGenerator:
             )
             self._active_tasks[task_id].status = "completed"
             self._active_tasks[task_id].progress = 100.0
+            owner = self._task_owners.get(task_id, "")
+            if owner:
+                result["owner"] = owner
             self._completed_scripts[task_id] = result
             # Persist to disk cache
             try:

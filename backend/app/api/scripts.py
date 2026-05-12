@@ -6,10 +6,11 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, UploadFile, File, Form, Query, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, Query, HTTPException, Depends
 from pydantic import BaseModel
 
 from app.services.script_generator import script_generator
+from app.core.auth import get_current_user
 
 logger = logging.getLogger(__name__)
 from app.services.copyright_checker import copyright_checker
@@ -18,6 +19,9 @@ from app.models.schemas import (
 )
 
 router = APIRouter(prefix="/api/scripts", tags=["scripts"])
+
+# Default owner used when migrating legacy scripts without an owner field.
+DEFAULT_LEGACY_OWNER = "admin"
 
 
 def _sanitize_json(obj):
@@ -75,13 +79,21 @@ def _load_disk_cache():
             data = json.loads(SCRIPTS_CACHE_FILE.read_text(encoding='utf-8'))
             items = data.get("scripts", {})
             repaired = 0
+            migrated_owner = 0
             for s in items.values():
                 if not s.get("foreshadowing"):
                     _repair_foreshadowing(s)
                     if s.get("foreshadowing"):
                         repaired += 1
+                # Migrate legacy scripts without owner field → default to admin
+                if not s.get("owner"):
+                    s["owner"] = DEFAULT_LEGACY_OWNER
+                    migrated_owner += 1
             _script_store.update(items)
-            logger.info(f"Loaded {len(items)} scripts from disk cache (repaired foreshadowing for {repaired})")
+            logger.info(
+                f"Loaded {len(items)} scripts from disk cache "
+                f"(repaired foreshadowing for {repaired}, migrated owner for {migrated_owner})"
+            )
     except Exception as e:
         logger.warning(f"Failed to load scripts disk cache: {e}")
 
@@ -108,6 +120,26 @@ save_script_to_disk_cache = _save_disk_cache
 
 _load_disk_cache()
 
+
+def _user_can_access(script: dict, user: dict) -> bool:
+    """Check whether the user is allowed to access a given script."""
+    if user.get("is_admin"):
+        return True
+    return script.get("owner") == user.get("username")
+
+
+def _set_owner_on_completed(task_id: str, owner: str):
+    """Called when the generator finishes — ensures the stored script has an owner."""
+    if not owner:
+        return
+    if task_id in _script_store:
+        _script_store[task_id]["owner"] = owner
+    save_script_to_disk_cache()
+
+
+# Expose to script_generator
+set_owner_on_completed = _set_owner_on_completed
+
 # In-memory Q&A sessions
 _qa_sessions: dict[str, list[dict]] = {}
 
@@ -129,35 +161,46 @@ class QARewriteRequest(BaseModel):
 
 
 @router.post("/generate")
-async def generate_script(request: ScriptRequest):
+async def generate_script(request: ScriptRequest, user: dict = Depends(get_current_user)):
     """开始生成剧本（异步）"""
-    task_id = await script_generator.start_generation(request)
+    task_id = await script_generator.start_generation(request, owner=user["username"])
     return {"task_id": task_id, "status": "generating"}
 
 
 @router.get("/status/{task_id}")
-async def get_generation_status(task_id: str):
+async def get_generation_status(task_id: str, user: dict = Depends(get_current_user)):
     """查询剧本生成状态"""
     status = await script_generator.get_task_status(task_id)
     if not status:
         raise HTTPException(status_code=404, detail="任务不存在")
 
+    # Enforce owner scoping: only the owner (or admin) can poll
+    owner = script_generator.get_task_owner(task_id)
+    if owner and not user.get("is_admin") and owner != user.get("username"):
+        raise HTTPException(status_code=403, detail="无权访问该任务")
+
     result = status.model_dump()
     if status.script:
         result["script"] = status.script.model_dump()
+        result["script"]["owner"] = owner or user["username"]
         _script_store[task_id] = result["script"]
         _save_disk_cache()
     return _sanitize_json(result)
 
 
 @router.get("/list")
-async def list_scripts():
-    """获取所有剧本列表（含生成中）"""
+async def list_scripts(user: dict = Depends(get_current_user)):
+    """获取当前账号的剧本列表（含生成中）。管理员默认也只看自己的；可通过 /api/admin/scripts 看全部。"""
     items = []
     seen_ids = set()
+    username = user["username"]
+    is_admin = user.get("is_admin", False)
 
-    # Add stored (completed via polling) scripts
+    # Add stored (completed) scripts belonging to this user
     for s in _script_store.values():
+        owner = s.get("owner") or DEFAULT_LEGACY_OWNER
+        if owner != username:
+            continue
         items.append({
             "id": s.get("id", ""),
             "title": s.get("title", ""),
@@ -167,41 +210,56 @@ async def list_scripts():
             "character_count": len(s.get("characters", [])),
             "created_at": s.get("created_at", ""),
             "status": "completed",
+            "owner": owner,
         })
         seen_ids.add(s.get("id", ""))
 
     # Add tasks from script generator (includes in-progress and completed)
     for task in script_generator.list_all_tasks():
-        if task["id"] not in seen_ids:
-            items.append({
-                "id": task["id"],
-                "title": task["title"],
-                "genre": task["genre"],
-                "logline": "",
-                "episode_count": 0,
-                "character_count": 0,
-                "created_at": task["created_at"],
-                "status": task["status"],
-                "progress": task["progress"],
-                "current_phase": task["current_phase"],
-            })
-            seen_ids.add(task["id"])
+        if task["id"] in seen_ids:
+            continue
+        task_owner = script_generator.get_task_owner(task["id"])
+        if task_owner and task_owner != username:
+            continue
+        items.append({
+            "id": task["id"],
+            "title": task["title"],
+            "genre": task["genre"],
+            "logline": "",
+            "episode_count": 0,
+            "character_count": 0,
+            "created_at": task["created_at"],
+            "status": task["status"],
+            "progress": task["progress"],
+            "current_phase": task["current_phase"],
+            "owner": task_owner or username,
+        })
+        seen_ids.add(task["id"])
 
     return {"items": items}
 
 
 @router.get("/{script_id}")
-async def get_script(script_id: str):
+async def get_script(script_id: str, user: dict = Depends(get_current_user)):
     """获取完整剧本（含生成中和已完成）"""
     if script_id in _script_store:
-        return _script_store[script_id]
+        script = _script_store[script_id]
+        if not _user_can_access(script, user):
+            raise HTTPException(status_code=403, detail="无权访问该剧本")
+        return script
     # Check generator's completed scripts as fallback
     completed = script_generator.get_completed_script(script_id)
     if completed:
+        owner = completed.get("owner") or script_generator.get_task_owner(script_id)
+        if owner and not user.get("is_admin") and owner != user.get("username"):
+            raise HTTPException(status_code=403, detail="无权访问该剧本")
         return completed
     # Check if it's a generating task
     task = await script_generator.get_task_status(script_id)
     if task:
+        task_owner = script_generator.get_task_owner(script_id)
+        if task_owner and not user.get("is_admin") and task_owner != user.get("username"):
+            raise HTTPException(status_code=403, detail="无权访问该剧本")
         return {
             "id": script_id,
             "status": task.status,
@@ -212,12 +270,26 @@ async def get_script(script_id: str):
     raise HTTPException(status_code=404, detail="剧本不存在")
 
 
+@router.delete("/{script_id}")
+async def delete_script(script_id: str, user: dict = Depends(get_current_user)):
+    """删除剧本（仅剧本所有者或管理员可操作）。"""
+    script = _script_store.get(script_id)
+    if not script:
+        raise HTTPException(status_code=404, detail="剧本不存在")
+    if not _user_can_access(script, user):
+        raise HTTPException(status_code=403, detail="无权删除该剧本")
+    del _script_store[script_id]
+    _save_disk_cache()
+    return {"message": "已删除", "script_id": script_id}
+
+
 @router.post("/upload-novel")
 async def upload_novel(
     file: UploadFile = File(...),
     episode_count: int = Form(default=8),
     genre: str = Form(default="重生"),
     style: str = Form(default="古风"),
+    user: dict = Depends(get_current_user),
 ):
     """上传小说并异步转换为剧本（支持进度轮询）。
 
@@ -265,18 +337,21 @@ async def upload_novel(
         genre=genre,
         style=style,
         chapters=docx_chapters,
+        owner=user["username"],
     )
 
     return {"task_id": task_id, "status": "generating"}
 
 
 @router.post("/{script_id}/copyright-check")
-async def check_copyright(script_id: str):
+async def check_copyright(script_id: str, user: dict = Depends(get_current_user)):
     """检查剧本版权风险"""
     if script_id not in _script_store:
         raise HTTPException(status_code=404, detail="剧本不存在")
 
     stored = _script_store[script_id]
+    if not _user_can_access(stored, user):
+        raise HTTPException(status_code=403, detail="无权操作该剧本")
     # Create a minimal Script object for checking
     script = Script(
         id=script_id,
@@ -294,7 +369,7 @@ async def check_copyright(script_id: str):
 
 
 @router.post("/qa")
-async def script_qa(request: QARequest):
+async def script_qa(request: QARequest, user: dict = Depends(get_current_user)):
     """Pre-generation Q&A: LLM asks clarifying questions about the script."""
     from app.core.ai_client import ai_client
 
@@ -382,7 +457,7 @@ D. 选项4
 
 
 @router.post("/rewrite")
-async def rewrite_script_part(request: QARewriteRequest):
+async def rewrite_script_part(request: QARewriteRequest, user: dict = Depends(get_current_user)):
     """Rewrite a part of the script using natural language instruction."""
     from app.core.ai_client import ai_client
 
@@ -390,6 +465,8 @@ async def rewrite_script_part(request: QARewriteRequest):
         raise HTTPException(status_code=404, detail="剧本不存在")
 
     stored = _script_store[request.script_id]
+    if not _user_can_access(stored, user):
+        raise HTTPException(status_code=403, detail="无权改写该剧本")
 
     # Build context based on target
     context = ""
