@@ -9,7 +9,7 @@ from typing import AsyncGenerator
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-MAX_RETRIES = 3
+MAX_RETRIES = 5
 RETRY_DELAY = 0.0  # retry immediately on timeout/transient errors
 
 
