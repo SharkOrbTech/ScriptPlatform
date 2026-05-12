@@ -21,7 +21,7 @@ class AIClient:
             self.client = openai.AsyncOpenAI(
                 api_key=settings.OPENAI_API_KEY,
                 base_url=settings.OPENAI_BASE_URL,
-                timeout=httpx.Timeout(600.0, connect=10.0),
+                timeout=httpx.Timeout(1000.0, connect=10.0),
                 max_retries=0,  # we handle retries ourselves
             )
             self.model = settings.OPENAI_MODEL
